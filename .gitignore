@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+._*
+
+# 脚本运行时产物
+# qc.sh / arrange_from_chords.sh 默认都写 /tmp，这里只做兜底
+*.pyc
+__pycache__/
+.venv/
+*.tmp
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~
+
+# 故意不忽略 references/commands.md：
+# 它虽然由 `acapella docs` 生成，但 skill 安装后就要能读到（软链/复制都不跑脚本），
+# 所以生成结果必须随仓库走。改它的唯一方式是重跑 scripts/gen-commands.sh。
