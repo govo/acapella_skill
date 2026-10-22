@@ -15,16 +15,19 @@ acapella project create "练习 - 晴天" --bpm 92 --beats-per-bar 4 --bars 64
 `revision` 从 0 变 1。
 
 ```bash
-acapella track add "主唱" --kind vocal
-acapella track add "和声" --kind vocal
+acapella track add "主唱" --kind recording
+acapella track add "和声" --kind recording
 acapella track list
 ```
 
-预期：两条 `kind = "stem"`、`role = "leadVocal"`、`hasAudio = false`（还没录音，正常）。
+预期：两条 `kind = "midi"`、`role = "recording"`、`isRecordingTrack = true`、
+`hasAudio = false`（还没录音，正常）。它们是**录音轨**：麦克风图标，`take import` / 录音的落点。
 
-**坑**：空工程里 `--kind midi` 也能加，但空工程没有节拍网格 → 写音符前先
-`beat set --bpm 92`。分轨工程（`isBlank = false`）里 `track add --kind vocal` 会
-`UNSUPPORTED`，只能加 MIDI 轨。
+想写音符就建另一种：`acapella track add "Bass" --kind midi` → `role = "midi"`（键盘图标）。
+
+**坑**：两种轨都只能在空工程里加。分轨工程（`isBlank = false`）里 `track add --kind recording`
+会报 `PRECONDITION_FAILED`（分轨工程只有分轨 + 由分轨派生的轨），`--kind midi` 仍可用。
+`--kind vocal` 是 `recording` 的旧别名，别在新脚本里用。
 
 ---
 

@@ -1,8 +1,8 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.1.1，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.2.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
-共 60 条命令。
+共 66 条命令。
 
 ## 会话
 
@@ -27,7 +27,7 @@
 | --- | --- |
 | `project list [--query <text>] [--limit 200]` | 作品库列表 |
 | `project get [<id\|name>]` | 单个工程（打开中的那个会带轨道） |
-| `project create <name> [--bpm 92] [--beats-per-bar 4] [--bars 64]` | 新建空工程并打开（返回完整快照） |
+| `project create <name> --bpm 92 --beats-per-bar 4 --bars 64 --key C` | 新建空工程并打开（返回完整快照） |
 | `project open [<id\|name>]` | 打开一个工程（会切走界面）并返回快照 |
 | `project close` | 关闭当前工程，回到列表 |
 | `project rename <id\|name> <new-name>` | 改工程名 |
@@ -36,8 +36,12 @@
 | `project import <file>` | 导入音频/视频成新工程（未实现：需要用户在 App 里选文件） |
 
 **`project create`**
-> 空工程只有人声轨可以加（分轨模型不存在）。长度给 --bars 或 --duration 二选一，
+> 建出来就是空工程，只有一条待录的录音轨；加轨用 `track add --kind recording|midi`，
+> 两种轨分开建（分轨模型不存在）。长度给 --bars 或 --duration 二选一，
 > 夹取会出现在 warnings 里 —— 不要忽略。
+> `--key` 是**建议必填**：写的是**调性轨首段**（不是「指定调号」下拉那个字段）。
+> 空工程没有音频，调性没法事后推断；不填就只能等生成合唱时逐声部猜，
+> 猜错了整条和声都会跑偏。合法写法 C / F# / Bb / Am。
 
 **`project import`**
 > 和 `upload` 不是一回事：上传解决的是"把一段音频放进**已打开**的工程"（`take import`），
@@ -50,7 +54,7 @@
 | --- | --- |
 | `track list` | 轨道列表（时间线顺序、类型、混音状态、音符数、有没有音频） |
 | `track get <track>` | 这条轨里到底是什么：音频文件、时长、采样率、take 元数据 |
-| `track add [<name>] [--kind midi\|vocal] [--after <track>]` | 加一条轨：vocal（仅空工程）或空 MIDI 轨 |
+| `track add [<name>] [--kind recording\|midi] [--after <track>]` | 加轨：recording（录音轨）或 midi（空白 MIDI 轨），空工程才两种都能加 |
 | `track rename <track> <new-name>` | 改轨名 |
 | `track delete <track> --confirm` | 删除轨道（破坏性：需要 --confirm） |
 | `track move <track> [--to 3] [--after <track>]` | 移动轨道到某个位置或某条轨之后 |
@@ -61,6 +65,15 @@
 **`track get`**
 > 读的是播放引擎真正调度的那个文件。分轨给源文件；MIDI / 合唱 / take 给整曲对齐的
 > 渲染 WAV。音频类字段在 `audio` 里，take 轨另外带 `take`（起点、时长、归属）。
+
+**`track add`**
+> `--kind recording` 建**录音轨**（轨道头是麦克风，`take import` / 录音的落点）；
+> `--kind midi` 建**空白 MIDI 轨**（轨道头是键盘，用 `notes replace` 画音符）。
+> 两种轨只在空工程里能加：导入工程只有分轨 + 由分轨派生的轨。
+> 已有的轨不会被这条命令改掉：真声合唱（`vocalHarmony`）、MIDI 合唱（`choir`）
+> 以及它们下面的 TAKE 子轨照旧。想分辨一条轨是哪一种，读 `track list` 的 `role`
+> （recording / midi / choir / vocalHarmony / take）与 `isRecordingTrack`
+> （能不能接 take）。别靠名字猜。
 
 **`track mix`**
 > 音量写 0.7 或 -3dB 都行；声像写 L30 / R15 / -0.3 / 0。
@@ -125,6 +138,46 @@
 
 **`beat analyze`**
 > 加 --wait 就轮询到结束再返回，脚本里更好用。
+
+## 调性
+
+| 命令 | 作用 |
+| --- | --- |
+| `key get` | 当前调性轨：逐段调性 / 生效值 / 来源（user 还是 inferred） |
+| `key set --key C [--at 17:1]` | 指定调性（写调性轨；整曲，或在某个时间点加转调） |
+
+**`key get`**
+> `hasKeyTrack` / `sections` / `spans` 才是「调性」—— 调性轨上的分段。
+> `effective` 是渲染器会用的那个调（调性轨优先，回落到 `detected`，与渲染器同口径）。
+> `detected` 只登记「指定调号」下拉的值，仅供对照，别拿它当调性。
+> `hasExplicit = false` = 调性轨还没有人手动指定过，此时 effective 多半来自推断。
+
+**`key set`**
+> 写的是**调性轨**（`sections` / `spans`），不是和弦面板那个「指定调号」下拉
+> （那个字段是 `detected`）。两者是两份数据，优先级也不同：渲染器取调时
+> 调性轨排第一，`detected` 只排第四。
+> 省略 `--at` = 整曲首段（0 秒、来源 `user`）；给 `--at` = 在该处加转调点再选调
+> （等价界面「加转调点」→「选调」两步）。
+> 非法调名当场拒绝；调性轨被锁时会返回 PRECONDITION_FAILED。
+
+## 合唱
+
+| 命令 | 作用 |
+| --- | --- |
+| `harmony options` | 真声合唱的全部类型（取值 / 名称 / 声部数） |
+| `harmony create --source <track> --type thirdAbove [--level 0.6]` | 从某条轨生成真声合唱（等同右键 Vocal Harmony） |
+| `choir options` | MIDI 合唱的全部声部串（bass.quarter / arpeggio.below.eighth …） |
+| `choir create --source <track> --part bass.quarter` | 生成 MIDI 合唱轨（等同右键 MIDI Choir） |
+
+**`harmony options`**
+> 先查再建：类型既可用名字（thirdAbove）也可用数字（2），重名与大小写都不敏感。
+
+**`harmony create`**
+> 多声部类型会落成多条轨（如 vocalStack4 → 4 条）。命令会等到队列跑空才返回，
+> 返回值里的 created[] 就是本次新建的轨（含 hasAudio / noteCount）。
+
+**`choir create`**
+> 声部串必须来自 `choir options`（与菜单项一一对应）；同样会等到渲染完成。
 
 ## 音频
 

@@ -9,10 +9,18 @@
 acapella doctor
  ├─ ✗ token      → App 设置页打开「AI 控制」（会写 token）；不要手造 token
  ├─ ✗ port       → 端口被占：--port 换一个，或关掉占用者
+ ├─ ✗ listening ✗ no answer (port held)
+ │               → 端口上有个**僵死进程**：TCP 握得上、HTTP 不回，kill -9 也清不掉
+ │                 活动监视器强退那个残留 Acapella，或重启电脑
  ├─ ✗ health     → App 没在跑，或开关是关的
  ├─ ✗ protocol   → CLI 与 App 版本不匹配：brew upgrade acapella
  └─ ✓ 全绿      → 问题在命令本身，看下面
 ```
+
+> 「连不上」有两种，处置完全不同，别混：
+> **拒绝连接** = App 没开 / 端口不对；**连上但无响应** = 端口被僵死进程占着。
+> 后者换 `--port` 只在**新起一个实例**时有用；`open -a Acapella --args --agent-port 47612`
+> 在部分 macOS 版本上根本不会把参数传进 App，别指望它。
 
 ## 退出码 → 下一步
 
@@ -74,10 +82,11 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 | 命令 | 为什么不行 | 替代 |
 | --- | --- | --- |
 | `project import` | 导入成品工程要跑分离、建记录、算节拍，入口必须是用户选文件 | 让用户在 App 里导入；自己的音频走 `upload` + `take import` |
-| `midi import` | 没有该命令 | 把音符贴成 JSON，`notes replace` |
-| `harmony …` | 没有该命令 | `track add --kind midi` + `notes replace`（配方 2） |
+| `midi import` / `midi export` | 没有该命令 | 把音符贴成 JSON，`notes replace` |
 | `fx …` | 没有该命令 | 只用 `track mix` 的音量/声像 |
 | 空工程里 `beat set` 改速 | 空工程的速度在创建时固定 | 新建时给对 `--bpm` |
+| 空工程里 `beat analyze` | 没有可分析的音频（即使已经 `take import`） | 同上：建工程时给对 BPM |
+| `key analyze` | 没有该命令（合唱取调不需要它） | `key get` / `key set` |
 
 ## App 端异常（`INTERNAL`）
 

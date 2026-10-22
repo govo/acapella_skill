@@ -85,12 +85,13 @@ N = 无和弦（该段留白）
 
 | 能做 | 不能做（别调用） |
 | --- | --- |
-| 建工程、加轨、改名、移动、删除 | `harmony stack`（无此命令） |
-| 写 / 改 / 查 / 分析音符 | `fx preset apply`（无此命令） |
-| 音量、声像、静音、独奏、折叠 | `midi import` / `take import`（无此命令） |
-| 渲染 MIDI 轨成音频 | `chords get/set`（无此命令） |
-| 走带、AB 循环、分段列表 | `key analyze`（无此命令） |
-| 节拍设置 / 分析 / 重拍 | 视频导出（`export --video` 存在，网格 MV 不在此版本） |
+| 建工程（BPM/拍号/长度/调性）、加轨、改名、移动、删除 | `fx preset apply`（无此命令；效果器只能靠音量/声像近似） |
+| 写 / 改 / 查 / 分析音符 | `midi import` / `midi export`（无此命令） |
+| 音量、声像、静音、独奏、折叠 | `chords get/set`（无此命令；和弦信息只在 App 内看） |
+| 从人声生成真声合唱 / MIDI 合唱（`harmony` `choir`） | `key analyze`（无此命令；用 `key get` 读，`key set` 写） |
+| 渲染 MIDI 轨成音频 | 空工程 `beat set` / `beat analyze`（BPM 建时定死） |
+| 走带、AB 循环、分段列表 | 网格 MV 视频（`export --video` 有，网格版不在本版本） |
+| 节拍查询 / 分析（导入工程）、重拍 | — |
 | 导出混音 / 分轨、客观质检 | — |
 
 没有效果器命令时，"听起来怎么样"只能靠音量和声像 —— 不要向用户承诺压缩、混响、EQ 的效果。
