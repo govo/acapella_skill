@@ -176,3 +176,33 @@ acapella state | jq '{solo: [.tracks[] | select(.isSoloed) | .token],
 导出前永远先看这一条：**导出只乘轨道音量，不乘独奏/静音**（历史事故：某次导出把伴奏乘 0，
 成片只剩录音）。所以"导出听起来不对"和"播放听起来不对"可能不是同一个原因 —— 以 `qc mix` 的
 `tracks[].hasSignal` 与 `checks.leadHasSignal` 为准。
+
+## 配方 7：从零用一段旋律建一首小样（含风格切换）
+
+`scripts/demo_twinkle.py` 是端到端样例：拿《小星星》当旋律，按风格自动写伴奏、
+混音、渲染，最后导出并质检。它替你做了两件最容易出错的事 —— 时间换算（全部由 BPM 推
+到 beat 网格）和音域校验（调内三度，不是固定 +4 半音）。
+
+```bash
+scripts/demo_twinkle.py --plan                 # 只看编排统计，不连 App
+scripts/demo_twinkle.py                        # 轻快流行 100 BPM，四轨
+scripts/demo_twinkle.py --style ballad         # 抒情 72 BPM，第四轨换成铺底长音
+scripts/demo_twinkle.py --style folk --bpm 126 # 民谣 126 BPM，去掉和声
+```
+
+把它当**模板**用，不要当成品：改 `MELODY`（起始拍、时值拍、MIDI）就能换旋律，
+改 `CHORDS` 换和声走向，`STYLES` 里加一项就是新风格。
+
+### 编曲轨也能导出（2026-10-22 起）
+
+导出源有四类：**伴奏分轨（stem）/ 编曲 MIDI 轨（midi）/ 真声合唱（harmony）/
+跟唱 take**。纯编曲工程（空工程 + 几条 MIDI 轨）现在可以正常出混音，但**必须先
+`track render`** —— 导出读的是渲染出来的整曲对齐 WAV，没渲染过的轨不会出现在
+导出源里（因此也不会在面板上给你一条点了必然报错的项）。
+
+所以顺序是固定的一句：**写音符 → `track mix` → `track render` → `export mix`**，
+少了 render 就报 `this project has nothing to export`。`track render` 返回
+`rendered: true` 只说明这一轨渲染成功，**能导出**要等 `export mix` 真的返回路径。
+
+导出文件名里带轨道短 id（`...-midi-lead-a7aa-...`），因为四条轨可能都叫「主旋律」，
+中文轨名 slug 化之后会撞车；短 id 保证唯一，且同一工程两次导出稳定同名。

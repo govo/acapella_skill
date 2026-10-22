@@ -40,14 +40,16 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 命令地图
 
-全表在 `references/commands.md`（由 `acapella docs` 生成，52 条，别手抄）。日常只用这几组：
+全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 51 条，另有本地命令（`doctor` `rpc` `upload` `help` `docs` `job wait`）。
+日常只用这几组：
 
 | 组 | 代表命令 |
 | --- | --- |
 | 会话 | `state` `caps` `history` `job get` |
 | 工程 | `project list/get/create/open/close/rename/star/delete` |
-| 轨道 | `track list/add/rename/delete/move/mix/fold/render` |
+| 轨道 | `track list/add/get/rename/delete/move/mix/fold/render` |
 | 音符 | `notes get/replace/patch/analyze` |
+| 音频 | `upload`（本地）`take import` `take list/get` |
 | 走带 | `transport play/pause/stop/seek/position/speed/countin` |
 | 循环 | `loop get/set/enable/clear` `section list` |
 | 节拍 | `beat get/set/analyze/downbeat` |
@@ -55,8 +57,23 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 `acapella rpc <cmd> --flag value` 是逃生门：CLI 还没包的命令可以直接发。
 
-**这个版本没有** `harmony` / `fx` / `midi import` / `take import` 命令。别调用它们。
-要编和声就 `track add --kind midi` + `notes replace`（见 `references/recipes.md` 配方 3）。
+**两条合法的创作路径，两条都能被读回来**：
+
+| 路径 | 三步 | 用来做 |
+| --- | --- | --- |
+| MIDI | `track add --kind midi` → `notes replace` → `track render` | 写声部、和声、编曲 |
+| 音频 | `upload` → `take import --track <录音轨>` → `track get` 读回 | AI 生成的成品音频、用户给的样本 |
+
+音频这条路**不能跳步**：`upload` 只把字节搬进容器（不进时间线），`take import` 才写工程。
+落盘是整曲对齐的，`--at` 之前补静音，所以 `durationSeconds`（源音频）与 `fileDurationSeconds`（整曲）是两个数。
+
+**还不能做的，别假装能做**：
+- `harmony *` / `fx *` / `midi import`：无此命令。（`caps.features` 若出现 `"fx": true`，是旧版自描述错误，以 `caps.commands` 为准。）
+- `project import`：需要用户在 App 里选文件（导入成品工程要分离、建记录、算节拍），CLI 走不通。
+
+**读的能力**：`state` / `track list` 给轨的骨架（类型、音符数、有没有音频、是不是空轨）；
+`track get` 给具体文件、时长、采样率、take 元数据（起点 / 时长 / trim）；`notes get` 给音符；
+`take list` 还给 peak / RMS / 是否削波 —— 写完音频要用它确认"真的有声"，不要靠猜。
 
 ## 读懂 state
 
@@ -86,8 +103,8 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ```bash
 acapella project create "Song" --bpm 92 --beats-per-bar 4 --bars 64   # 返回完整快照
-acapella track add "Lead Vocal" --kind vocal                          # 空工程只能加人声轨
-acapella track add "Bass"  --kind midi                                # 和声声部都是 MIDI 轨
+acapella track add "Lead Vocal" --kind vocal                          # 空工程可加人声(录音)轨
+acapella track add "Bass"  --kind midi                                # 空工程同样能加 MIDI 轨（默认 kind）
 acapella track add "Pad"   --kind midi
 ```
 
@@ -96,7 +113,7 @@ acapella track add "Pad"   --kind midi
 3. **渲染**：所有轨写完后 **一次** `track render --track midi:…`；批量写、一次渲染。
 4. **混音**：`track mix --track midi:… --volume -3dB --pan L20`（声像/音量起点见 `references/music.md`）。
 5. **质检**：`scripts/qc.sh`（内部跑 `qc mix`，阈值不过就退出非 0）。
-6. **交付**：`acapella export mix`，用返回的绝对路径告诉用户文件在哪。
+6. **交付**：工程本身就是交付物。`acapella export mix` 只是给用户试听的辅助证据，用返回的绝对路径告诉他文件在哪。
 
 ## 工作流 B：用户已经给了一份编配（音符表 / 和弦）
 
@@ -104,11 +121,28 @@ acapella track add "Pad"   --kind midi
 - 用户给音符 JSON → `notes replace`，再 `qc notes --track midi:…` 查音域与重叠。
 - 用户给 MIDI 文件 → 这个版本**导不进来**（无 `midi import`）。请用户把音符贴成 JSON，或先在 App 里手动导入。
 
+## 工作流 C：把一段音频放进工程（AI 生成的成品 / 用户给的样本）
+
+```bash
+acapella track list                                   # 先找落点：role=recording / role=take 的轨
+acapella upload ~/Desktop/lead.wav                    # → fileId
+acapella take import --file <fileId> --track <录音轨> --at 9:1
+acapella track get <录音轨>                            # 读回：文件名、时长、起点
+```
+
+1. **落点**：空项目的每条人声轨（`role = "recording"`）都能接；分轨工程里选主唱 / 已存在的 take 轨。
+   目标是已有 take 的轨 = **覆盖那一遍录音**，要加 `--confirm`。
+2. **对齐**：整曲对齐落盘，`--at` 决定起点（`--at 1:1` = 0 秒）。音频比工程长会在 `warnings` 里说尾巴放不下。
+3. **确认**：`hasAudio = true` 且 `durationSeconds` 与源文件一致（误差 ≤ 0.05s）才算成。
+   有声没声看 `take list` 的 `hasSignal` / `peakDbfs`，别靠"返回成功"。
+
 ## 交付前自检（每次都要跑）
 
 ```
 [ ] state.revision 比开始时大（改动真的生效）
 [ ] 每条新轨 hasAudio = true，noteCount > 0（不是幽灵轨）
+[ ] 写进去的内容能读回（notes get 与写入一致）
+[ ] 音频轨：`hasAudio = true` 且 `take list` 的 `hasSignal = true`（不是空文件）
 [ ] qc mix: peak < -0.3 dBFS 且 clipped = false
 [ ] qc mix: 主唱轨 hasSignal = true（不是只剩伴奏）
 [ ] notes 音域在 references/music.md 表内（越界会被听出来）
@@ -125,7 +159,7 @@ acapella track add "Pad"   --kind midi
 - ❌ 期待"加 5 条和声轨同时生成" —— 生成与渲染都是串行的，按序等。
 - ❌ 忽略 `warnings`（"名字重复已改名"）后继续用旧名字寻址 —— 下一步必 `NOT_FOUND`。
 - ❌ 把 `track render` 当成"写音符" —— 它只把已有音符渲成音频，不写音符。
-- ❌ 空工程里 `project import` —— 这个版本返回 `UNSUPPORTED`（没有上传端点）。
+- ❌ 空工程里 `project import` —— 它要用户在 App 里选文件（导入成品工程要分离、建记录、算节拍）；自己的音频要走 `upload` + `take import`。
 
 ## 出错时
 
@@ -139,8 +173,15 @@ acapella track add "Pad"   --kind midi
 
 ```bash
 brew install govo/tap/acapella      # 或：把 acapella 二进制放进 PATH
-acapella --version
+acapella --version                  # 需 0.1.0+，且必须认 auth 子命令
+acapella auth set-token <token>     # App → 设置 → 「AI 控制」→ 复制 token
+acapella doctor                      # 全绿才继续
 ```
+
+**凭证只存 `~/.config/acapella/token`，不要试图去读 App 的沙盒容器**（实测 `Operation not permitted`）。
+
+若 `acapella auth` 报 `unknown command`，说明手上的二进制早于凭证改造（旧分发物），
+请更新到最新构建——**不要** `--token` 硬塞、不要改端口、不要手动往容器里写文件。
 
 Skill 本身用软链安装（开发时改文件立即生效）：
 

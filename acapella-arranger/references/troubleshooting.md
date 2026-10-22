@@ -73,8 +73,8 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 
 | 命令 | 为什么不行 | 替代 |
 | --- | --- | --- |
-| `project import` | 沙盒读不到 CLI 给的任意路径（需要上传端点） | 请用户在 App 里导入，再用 `state` 接着做 |
-| `midi import` | 同上（没有该命令） | 把音符贴成 JSON，`notes replace` |
+| `project import` | 导入成品工程要跑分离、建记录、算节拍，入口必须是用户选文件 | 让用户在 App 里导入；自己的音频走 `upload` + `take import` |
+| `midi import` | 没有该命令 | 把音符贴成 JSON，`notes replace` |
 | `harmony …` | 没有该命令 | `track add --kind midi` + `notes replace`（配方 2） |
 | `fx …` | 没有该命令 | 只用 `track mix` 的音量/声像 |
 | 空工程里 `beat set` 改速 | 空工程的速度在创建时固定 | 新建时给对 `--bpm` |
