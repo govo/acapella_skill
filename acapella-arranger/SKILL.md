@@ -4,7 +4,7 @@ description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程�
 metadata:
   version: "0.1.0"
   requires: acapella 0.1.0+
-compatibility: 需要 macOS 14+ 与 Acapella.app；`acapella` 装在 PATH 里（brew install govo/tap/acapella），App 设置页「AI 控制」已打开。
+compatibility: 需要 macOS 14+ 与 Acapella.app；`acapella` 装在 PATH 里（brew tap govo/tap && brew trust govo/tap && brew install acapella），App 设置页「AI 控制」已打开。
 allowed-tools: Bash(acapella:*) Bash(${CLAUDE_SKILL_DIR}/scripts/*)
 ---
 
@@ -172,7 +172,8 @@ acapella track get <录音轨>                            # 读回：文件名�
 ## 安装
 
 ```bash
-brew install govo/tap/acapella      # 或：把 acapella 二进制放进 PATH
+brew tap govo/tap && brew trust govo/tap   # Homebrew 6 起第三方 tap 必须先信任
+brew install acapella               # 或：把 acapella 二进制放进 PATH
 acapella --version                  # 需 0.1.0+，且必须认 auth 子命令
 acapella auth set-token <token>     # App → 设置 → 「AI 控制」→ 复制 token
 acapella doctor                      # 全绿才继续
