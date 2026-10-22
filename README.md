@@ -64,4 +64,4 @@ ACAPELLA_BIN=../Acapella/Acapella/CLI/.build/debug/acapella ./scripts/gen-comman
 
 ## 版本
 
-`SKILL.md` 的 `metadata.version` 跟着 CLI 的协议版本走。当前：CLI 0.1.0 / 协议 1。
+`SKILL.md` 的 `metadata.version` 跟着 CLI 的协议版本走。当前：CLI 0.1.1 / 协议 1。
