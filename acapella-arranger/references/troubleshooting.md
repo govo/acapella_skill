@@ -8,7 +8,8 @@
 ```
 acapella doctor
  ├─ ✗ token      → App 设置页打开「AI 控制」（会写 token）；不要手造 token
- ├─ ✗ port       → 端口被占：--port 换一个，或关掉占用者
+ ├─ ✗ port       → 端口被占：CLI 已自动扫 47610–47620；仍连不上才换 --port，
+ │                 或关掉占用者
  ├─ ✗ listening ✗ no answer (port held)
  │               → 端口上有个**僵死进程**：TCP 握得上、HTTP 不回，kill -9 也清不掉
  │                 活动监视器强退那个残留 Acapella，或重启电脑
@@ -21,6 +22,10 @@ acapella doctor
 > **拒绝连接** = App 没开 / 端口不对；**连上但无响应** = 端口被僵死进程占着。
 > 后者换 `--port` 只在**新起一个实例**时有用；`open -a Acapella --args --agent-port 47612`
 > 在部分 macOS 版本上根本不会把参数传进 App，别指望它。
+>
+> 端口发现：App 默认绑 47610，被占时自动顺延 47611–47620；CLI 连不上默认端口时
+> 自动扫这一段找 `/health`（`doctor` 会标注 auto-discovered）。显式 `--port` 时
+> 不扫描 —— 用户说了算。
 
 ## 退出码 → 下一步
 
