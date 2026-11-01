@@ -109,6 +109,17 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 容差内的长度差**不会**报错，但会有 `warning: … ends at X s — Y s of the project tail will be silence`。
 这不是噪音：不处理的话导出末尾就是一截静音。
 
+## 阿卡贝拉合唱（`choir voices`）——三个**不报错**的错
+
+| 现象 | 真因 | 处理 |
+| --- | --- | --- |
+| 用户要「四人阿卡贝拉」，你交了 `harmony create` 的结果 | 那是对主唱移调渲染，产出「同一个人唱的另一个音高」，四个独立声部根本没出现 | 那份结果当和声留着可以，但阿卡贝拉本体得 `track add --kind midi` × N + 自己写音符（工作流 F） |
+| 建到第三条 MIDI 轨回 `LIMIT_REACHED` | 免费档每工程 MIDI 轨数有限（四声部要 4 条） | 先看 `caps` 的额度再规划；装不下就如实告诉用户（升级或退二声部），**不要**偷偷删掉用户别的轨 |
+| 四条轨都有音符，听着却像合成器铺底 | 声部跨界、间距开洞、连续平行五度/八度、四条力度一模一样 | 拿 `choir voices` 的 `voices` + `rules` 逐条对：音域、八度间距、平行进行、velocity 分层 |
+
+`choir create` 连发四次**不会**变成四声部：它每次只按和弦算一条线、不读别的声部，
+四条线不会互相避让（撞音、平行五度、间距开洞都会出现）。
+
 ## App 端异常（`INTERNAL`）
 
 先看 App 是否卡在某个长任务：`acapella job get` 列任务。若 `state` 仍能返回，说明服务还活着，

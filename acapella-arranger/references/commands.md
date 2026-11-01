@@ -1,8 +1,8 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.3.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.4.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
-共 69 条命令。
+共 70 条命令。
 
 ## 会话
 
@@ -225,6 +225,7 @@
 | `harmony create --source <track> --type thirdAbove [--level 0.6]` | 从某条轨生成真声合唱（等同右键 Vocal Harmony） |
 | `choir options` | MIDI 合唱的全部声部串（bass.quarter / arpeggio.below.eighth …） |
 | `choir create --source <track> --part bass.quarter` | 生成 MIDI 合唱轨（等同右键 MIDI Choir） |
+| `choir voices` | 多人阿卡贝拉的四声部音域表与编曲约束（只读，不生成） |
 
 **`harmony options`**
 > 先查再建：类型既可用名字（thirdAbove）也可用数字（2），重名与大小写都不敏感。
@@ -235,6 +236,16 @@
 
 **`choir create`**
 > 声部串必须来自 `choir options`（与菜单项一一对应）；同样会等到渲染完成。
+
+**`choir voices`**
+> 这条不给工程加任何东西，只回答"怎么写一首无伴奏合唱"：
+> SATB 四个声部的可写音域 / 舒适区 / 角色，以及声部间距、平行五八度、
+> 力度配比这些约束。
+> 什么时候用它：用户要的是「阿卡贝拉合唱团 / 无伴奏合唱 / 多人合唱」，
+> 即**你自己按声部写 MIDI**、一人一轨。不是 `harmony create`
+> （那是渲染真声音频，你一个音符都不用写），也不是 `choir create`
+> （那是按和弦铺一条模板图案，只有一条线）。
+> 落地是 `track add --kind midi` × N + 每个声部一次 `notes replace`。
 
 ## 导出
 
@@ -374,6 +385,24 @@ acapella track audio restore vocals                         # 反悔了，回原
 `replace` 落盘是 44.1 kHz 立体声、第 0 帧 = 歌曲 0 秒（与分离产物同口径），
 分轨的原文件不会被覆盖，所以 `restore` 只是把记录指回去。
 录音 take 换掉就是换掉了（与界面重录同一语义），没有 restore。
+
+## 写一首多人阿卡贝拉（是编曲，不是生成）
+
+```
+acapella choir voices                               # 音域表 + 约束（只读，不动工程）
+acapella track add --kind midi --name Bass          # 一人一轨：四声部 = 四次
+acapella notes replace midi:… --notes @bass.json    # 每个声部写一次，自动重渲染该轨
+acapella qc notes && acapella qc mix                # 音域 / 平衡
+```
+
+`harmony create` 和 `choir create` 都是**生成**：前者把主唱音频移调渲染成真声，
+后者按和弦铺一条模板线 —— 两条路都不需要你写一个音符。
+用户说「阿卡贝拉合唱团 / 无伴奏合唱 / 每人一个声部」时要的正好相反：
+四条 MIDI 轨、一名歌手一条，音符由你按声部写出来。
+
+`choir voices` 给 SATB 的可写音域（Bass E2–E4 / Tenor C3–A4 / Alto F3–F5 / Soprano C4–C6）、
+舒适区、相邻声部最大间距，以及平行五八度与力度分层的约束。
+连着 `choir create` 发四次不会变成四声部：它每次只按和弦算一条线、不读别的声部。
 
 ## 输出与退出码
 

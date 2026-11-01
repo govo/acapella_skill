@@ -1,6 +1,6 @@
 ---
 name: acapella-arranger
-description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、按界面右键菜单生成真声合唱与 MIDI 合唱、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""生成真声合唱""来个 MIDI 合唱/低音线/琶音""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
+description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
 metadata:
   version: "0.4.0"
   requires: acapella 0.4.0+
@@ -49,7 +49,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 命令地图
 
-全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 62 条，另有本地命令（`doctor` `rpc` `upload` `download` `help` `docs` `job wait`）。
+全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 63 条，另有本地命令（`doctor` `rpc` `upload` `download` `help` `docs` `job wait`）。
 日常只用这几组：
 
 | 组 | 代表命令 |
@@ -59,7 +59,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | 轨道 | `track list/add/get/rename/delete/move/mix/fold/render` |
 | 音符 | `notes get/replace/patch/analyze` |
 | 调性 | `key get/set` |
-| 合唱 | `harmony options/create` `choir options/create` |
+| 合唱 | `harmony options/create` `choir options/create/voices` |
 | 音频 | `upload`（本地）`download`（本地）`take import` `take list/get` |
 | 轨道音频 | `track audio export/replace/restore` |
 | 走带 | `transport play/pause/stop/seek/position/speed/countin` |
@@ -77,6 +77,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | 音频 | `upload` → `take import --track <录音轨>` → `track get` 读回 | AI 生成的成品音频、用户给的样本 |
 | 换音 | `track audio export` → 处理 → `upload` → `track audio replace` | 改掉**已有**那一轨的声音（换鼓、换主唱） |
 | 合唱 | `key set` → `harmony create` / `choir create` | 从一段人声派生真声合唱 / MIDI 合唱 |
+| 阿卡贝拉 | `choir voices` → `track add --kind midi` × N → `notes replace` × N | **多人无伴奏合唱**：一人一声部，音符由你写 |
 
 音频这条路**不能跳步**：`upload` 只把字节搬进容器（不进时间线），`take import` 才写工程。
 落盘是整曲对齐的，`--at` 之前补静音，所以 `durationSeconds`（源音频）与 `fileDurationSeconds`（整曲）是两个数。
@@ -86,9 +87,22 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 想"改某条轨的音频"就用后者，别绕 `take import` —— 分轨 stem 根本挂不上 take。
 取出 → 处理 → 放回 → 反悔，四步闭环见工作流 E。
 
-合唱这条路走的是**界面上右键菜单的同一个入口**（`enqueueHarmonyGeneration` 那条串行队列），
+合唱有**三条路**，先分清用户要哪一种 —— 选错等于没做：
+
+| 用户要的 | 走哪条 | 谁写音符 |
+| --- | --- | --- |
+| 给主唱加一层和声，丰富一点 | `harmony create`（真声） | 机器渲染音频，你一个音都不写 |
+| 按和弦铺一条低音 / 琶音 / 平行线 | `choir create`（模板） | 机器套模板，你只选声部串 |
+| **阿卡贝拉合唱团：多人、无伴奏、一人一个声部** | `choir voices` → 手写 N 条 MIDI 轨 | **你写** —— 每个声部每个音 |
+
+前两条走的是**界面上右键菜单的同一个入口**（`enqueueHarmonyGeneration` 那条串行队列），
 所以 CLI 建出来的东西与手点出来的一模一样：有音频、有波形、多声部类型落成多条轨。
 细节见 `references/harmony.md`。
+
+第三条**没有生成入口**：它不是"让 App 生成合唱"，而是"你按声部编一首合唱"。
+所以别对它用 `harmony create`（那是渲染真声音频，你一个音符都没写，用户要的多人合唱没发生），
+也别用 `choir create` 连发四次（一条命令只产出一条模板线，四次也只是四条各自独立的陪衬线，
+不是互相咬合的织体）。具体做法见工作流 F。
 
 **还不能做的，别假装能做**：
 - `fx *` / `midi import` / `midi export`：无此命令（`caps.features.fx` 报 `true` 是旧版自描述错误，以 `caps.commands` 为准）。
@@ -237,6 +251,49 @@ acapella track audio restore drums                             # 7 反悔（分�
 7. **验收看三件事**：`replaced = true`、`export` 再取一次**文件确实变了**（大小/时长/sha）、
    `qc mix` 的 `peak` / `clipped` 仍过关（新素材常常更响，`peakGuardCeiling = 0.89`）。
 
+## 工作流 F：写一首多人阿卡贝拉（SATB，一人一轨）
+
+**什么时候走这条**：用户说的是「阿卡贝拉合唱团」「无伴奏合唱」「四个人四个声部」「人声乐队」，
+或明确要「每个人唱一个声部」。**不是**「给主唱加点和声」（那是工作流 D）。
+
+```bash
+acapella choir voices                          # 1 音域表 + 约束（只读，不建轨）
+acapella key get                               # 2 调性是编曲前提，没有就 key set
+acapella track add --kind midi --name Bass     # 3 一人一轨：四声部 = 四次
+acapella track add --kind midi --name Tenor
+acapella track add --kind midi --name Alto
+acapella track add --kind midi --name Soprano
+# 4 每个声部写一份 notes JSON：[{start,duration,pitch,velocity}]，一次写完一条轨
+acapella notes replace <Bass>    --notes @bass.json
+acapella notes replace <Tenor>   --notes @tenor.json
+acapella notes replace <Alto>    --notes @alto.json
+acapella notes replace <Soprano> --notes @soprano.json
+acapella qc notes                              # 5 音域 / 重叠
+acapella qc mix                                # 6 平衡 / 削波
+```
+
+硬约束（完整版在 `choir voices` 的 `rules` 里，这里只列最容易犯的）：
+
+1. **一人一轨**。四声部就是四条 MIDI 轨。把整个合唱塞进一条轨 = 音域跨两个八度，
+   听起来是合成器垫音，不是四个人。
+2. **音域**（`choir voices` 同时给 MIDI 号与音名，直接用）：
+   Bass E2–E4、Tenor C3–A4、Alto F3–F5、Soprano C4–C6；大部分音留在舒适区。
+3. **间距**：相邻声部不超过八度（T–B 可到十二度）。无伴奏没有乐器填缝，缝一大就露洞。
+4. **平行五度 / 八度**：两声部同向连续五度或八度，在裸织体里会糊成一条线，避开。
+5. **旋律只归一个声部**（通常 Soprano，男声主唱时 Tenor），其他人不许同度叠。
+6. **和声别拖**：一个和弦最多撑两小节。没有乐器维持，长音会塌。
+7. **力度当配器用**：内声部（A/T）0.55–0.7，外声部（S/B）0.75–0.9。四条都 0.8 像管风琴。
+8. **写形式，不要写循环**。主歌 / 副歌 / 桥段换 voicing；原样复制粘贴正是 `choir create` 干的事。
+
+验收：
+
+- 每条声部轨 `noteCount > 0` 且 `hasAudio = true`（`notes replace` 会自动重渲染，不用再 `track render`）。
+- `notes get` 抽查：最高/最低音落在本声部 `range` 内，不是「大概没问题」。
+- `qc mix`：`clipped = false`，内声部别跟主唱抢同一中频。
+
+> 免费档每工程的 MIDI 轨数有限，四声部可能装不下。**先看 `caps` 的额度**；
+> 装不下就如实告诉用户（升级，或退成二声部），不要在第三条轨上撞 `LIMIT_REACHED`。
+
 ## 交付前自检（每次都要跑）
 
 ```
@@ -251,6 +308,8 @@ acapella track audio restore drums                             # 7 反悔（分�
 [ ] qc mix: peak < -0.3 dBFS 且 clipped = false
 [ ] qc mix: 主唱轨 hasSignal = true（不是只剩伴奏）
 [ ] notes 音域在 references/music.md 表内（越界会被听出来）
+[ ] 阿卡贝拉：每条声部轨 `noteCount > 0`，且 `notes get` 的最高/最低音在该声部 `range` 内
+[ ] 阿卡贝拉：相邻声部间距 ≤ 八度（T–B 十二度），没有连续平行五 / 八度
 [ ] 导出文件存在，时长 ≈ project.duration（只在循环里导出时 ≈ b − a）
 ```
 
@@ -273,6 +332,9 @@ acapella track audio restore drums                             # 7 反悔（分�
 - ❌ `cp` 新音频覆盖容器里的分轨文件 / 改记录 JSON 里的 `stemFileNames` —— 与内存态分叉，App 一保存就还原。
 - ❌ 对真声合唱轨 `track audio replace` —— 它是从源轨渲染出来的，换源轨再 `harmony create`。
 - ❌ 换了鼓就以为导出是新鼓 —— 派生残差轨与真声合唱是旧渲染，看 `warnings`。
+- ❌ 用 `harmony create` 交付「阿卡贝拉合唱团」—— 那是对主唱做移调渲染，你一个音符都没写；用户要的多人合唱没有发生。
+- ❌ 用 `choir create` 连发四次充当四声部 —— 每条只产出一条模板线（低音 / 琶音 / 平行），四条各自为政，不是互相咬合的织体。
+- ❌ 把整个合唱团写进一条 MIDI 轨 —— 音域跨两个八度，听感是合成器垫音；`qc` 看不出来，但人一耳朵就能听出不是四个人。
 
 ## 出错时
 
