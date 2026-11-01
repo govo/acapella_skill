@@ -1,6 +1,6 @@
 ---
 name: acapella-arranger
-description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、**换 MIDI 轨音色（人声元音 / 乐器）**、**按声部配人声音色（元音怎么分、男女几比几）**、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""换个音色/换个元音""这段人声换成呜或噢""用什么元音/男女声怎么分""阿卡贝拉用什么音色""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
+description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、**换 MIDI 轨音色（人声元音 / 乐器）**、**按声部配人声音色（元音怎么分、男女几比几）**、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、**给工程写入 / 替换 / 对齐歌词（LRC、逐词、纯文本）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""换个音色/换个元音""这段人声换成呜或噢""用什么元音/男女声怎么分""阿卡贝拉用什么音色""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程""帮我加歌词/把这首词填进去""歌词对不上/早了慢了""换一份歌词"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
 metadata:
   version: "0.5.1"
   requires: acapella 0.5.0+
@@ -49,7 +49,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 命令地图
 
-全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 64 条，另有 8 条本地命令（`doctor` `rpc` `upload` `download` `auth set-token/status/clear` `help` `docs` `job wait`）。
+全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 68 条，另有 8 条本地命令（`doctor` `rpc` `upload` `download` `auth set-token/status/clear` `help` `docs` `job wait`）。
 日常只用这几组：
 
 | 组 | 代表命令 |
@@ -59,6 +59,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | 轨道 | `track list/add/get/rename/delete/move/mix/fold/render` |
 | 音色 | `instrument list` `track instrument` |
 | 音符 | `notes get/replace/patch/analyze` |
+| 歌词 | `lyrics get/set/offset/clear` |
 | 调性 | `key get/set` |
 | 合唱 | `harmony options/create` `choir options/create/voices` |
 | 音频 | `upload`（本地）`download`（本地）`take import` `take list/get` |
@@ -113,6 +114,35 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 **读的能力**：`state` / `track list` 给轨的骨架（类型、音符数、有没有音频、是不是空轨）；
 `track get` 给具体文件、时长、采样率、take 元数据（起点 / 时长 / trim）；`notes get` 给音符；
 `take list` 还给 peak / RMS / 是否削波 —— 写完音频要用它确认"真的有声"，不要靠猜。
+
+## 歌词（整首歌一份文本，不属于任何一条轨）
+
+```bash
+acapella lyrics get --limit 40                 # 有没有、什么格式、能不能跟唱、偏移多少
+acapella lyrics set --text @song.lrc           # 写入 / 替换整份（LRC / 逐词 / 纯文本，自动识别）
+acapella lyrics set --text @song.lrc --offset -0.3
+acapella lyrics offset --by -0.3               # 只挪时间轴，不重写文本
+acapella lyrics clear                          # 删掉这份词（轨 / 音频 / MIDI 都不动）
+```
+
+四条硬口径：
+
+1. **「写进去了」不等于「对上了」**。只有带时间戳的写法（`[mm:ss.xx]这一行` 逐行、
+   `[mm:ss.xx]这 [mm:ss.xx]是` 标准逐词、`[mm:ss.xx]<mm:ss.xx>这` 增强逐词）面板才会高亮跟随播放。
+   纯文本存得进、看得见，但**不跟唱**。判断看返回值的 `plainText` 与 `timedLineCount`，
+   不要只看 `hasLyrics`。
+2. **时间戳必须是 `mm:ss.xx`**（分钟两位、小数两到三位）。写成 `[0:12]` / `[00:12]` 不会报错，
+   而是**整份降级成纯文本** —— 方括号会原样显示成正文。这种情况返回 `plainText = true`
+   外加一条 warning，看到就当成失败重发。
+3. **歌词属于当前打开的工程，整首歌一份**。没有"哪条轨的歌词"这回事 —— 要写别的工程先
+   `project open`（`lyrics set` 对非当前工程直接报 `PRECONDITION_FAILED`）。
+4. **只挪时间轴别重发文本**。用户说"歌词慢了半拍"→ `lyrics offset --by -0.3`，一次挪 0.2～0.5 秒。
+   `set` 会把偏移**重置**（`--offset` 省略即归零）：换了一份新词就顺手把偏移一起给，
+   否则新词整体跑偏而 `lines` 看着完全正常。
+
+`lyrics get --raw` 返回的 `text` 就是 `lyrics set` 能吃回去的原格式文本：改几个字再写回，
+时间戳一个不丢。要"逐句改写 / 补一段"就走这条，别照着 `lines[]` 自己重拼 ——
+那份时间戳是取整过的，往返几次只会越对越歪。
 
 ## 音色（钢琴卷帘的 timbre）与免费边界
 
@@ -186,6 +216,8 @@ acapella track instrument <track> synth.choirOoh --dry-run
   "key": { "hasKeyTrack": true, "detected": "C", "effective": "C", "hasExplicit": true,
            "sections": [ { "start": {"seconds":0,"bar":"1:1"}, "key": "C", "source": "user" } ],
            "spans": [ { "start": {"seconds":0,"bar":"1:1"}, "end": {"seconds":214.6,"bar":"54:1"}, "key": "C" } ] },
+  "lyrics": { "hasLyrics": true, "format": "lrc", "plainText": false,
+              "lineCount": 42, "timedLineCount": 42, "offset": -0.3, "panelVisible": false },
   "tracks": [
     { "token": "vocals", "kind": "stem", "role": "leadVocal", "hasAudio": true,
       "volume": 1, "pan": 0, "isMuted": false, "isSoloed": false, "noteCount": 0 },
@@ -209,6 +241,9 @@ acapella track instrument <track> synth.choirOoh --dry-run
 - `tracks[].hasAudio = false` 的 MIDI 轨是**幽灵轨**：写了音符但没 `track render`，听不到。
 - `tracks[].instrumentId` 是这条轨的音色（落盘值，跟着工程走）；`vocal = true` 表示人声元音；
   `instrumentLocked = true` 表示**当前档位不能再把它选回来**，但轨道照样能用（见「音色与免费边界」）。
+- `lyrics.plainText = true` 表示这份词**没有时间轴**：面板显示得出，但不跟随播放、
+  双击不跳转。要跟唱就得重发一份带 `[mm:ss.xx]` 的词（见「歌词」一节）。
+  `lyrics.offset` 是同步偏移（正数 = 词比声音晚），只调它用 `lyrics offset`。
 - `role` 只有五种，和界面上的轨道种类一一对应：`recording`（录音轨）/ `midi`（MIDI 声部轨）/
   `choir`（MIDI 合唱，生成器产出）/ `vocalHarmony`（真声合唱，内容是音频）/ `take`（TAKE 子轨）。
   **能不能接 take 看 `isRecordingTrack`，不要看 `role`**（真声合唱轨也能挂 take）。
@@ -395,6 +430,9 @@ acapella qc mix                                # 8 平衡 / 削波
 [ ] 音色：轨道原本就有的锁定元音**没被你改回**「啊」（`instrumentLocked` 是状态，不是待修的错）
 [ ] 阿卡贝拉：每条声部轨的音色是**人声元音**（`vocal = true`），不是方波 / 正弦凑出来的
 [ ] 阿卡贝拉：全团同一个元音（除非用户明确要分层），S/A 是 `--voice female`、T/B 是 `male`
+[ ] 歌词：`lyrics get` 的 `plainText = false` 且 `timedLineCount` 等于应有的行数（能跟唱）
+[ ] 歌词：末行 `end` 没超出 `project.duration`（超了会有一条 warning，别忽略）
+[ ] 歌词：用户说"对不上"时用的是 `lyrics offset`，没有把整份词重发一遍
 [ ] 导出文件存在，时长 ≈ project.duration（只在循环里导出时 ≈ b − a）
 ```
 
@@ -427,6 +465,9 @@ acapella qc mix                                # 8 平衡 / 削波
 - ❌ 看到男声"听着小"就加 3 dB —— 先看是不是让他唱了 `ee` / `ah` 这种高 F1 元音，音色内部男女已配平。
 - ❌ 看到 `instrumentLocked: true` 就去"修正"它 —— 那是**已选过的 Pro 元音**，退回「啊」等于把用户的编曲改坏。
 - ❌ 对 `role = vocalHarmony` 的轨 `track instrument` —— 它是音频，音色改不动（`PRECONDITION_FAILED`）；去换源轨再 `harmony create`。
+- ❌ 写完歌词就宣布"词配好了" —— 纯文本（`plainText = true`）不跟唱；看 `timedLineCount`。
+- ❌ 拿 `[0:12]词` / `[00:12]词` 当 LRC 写 —— 缺百分秒会被整份降级成纯文本，方括号原样显示。
+- ❌ 为了挪 0.3 秒把整份歌词重发一遍 —— `lyrics offset --by -0.3` 就够，重发还可能把时间戳改歪。
 
 ## 出错时
 

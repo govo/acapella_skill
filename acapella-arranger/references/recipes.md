@@ -1,4 +1,4 @@
-# 六个完整配方
+# 十个完整配方
 
 每个配方都是**可复制的命令序列**。`<…>` 是占位符，`midi:…` 要换成 `track list` 里的真实 token。
 
@@ -331,3 +331,47 @@ acapella qc mix          # 平衡 / 削波
   换风格就整首换一个元音，别按声部拆；免费档只有「啊」。全表见 `references/voices.md`。
 - **额度**：手写四声部要 4 条 MIDI 轨，免费档可能装不下。先看 `caps`，装不下就告诉用户。
 
+
+---
+
+## 配方 10：给工程配一份能跟唱的歌词
+
+歌词是**整首歌一份文本**，不属于任何一条轨；面板在播放器里，存 `<recordID>_lyrics.json`。
+
+```bash
+# 0 先看现状：有没有、什么格式、能不能跟唱
+acapella lyrics get --limit 5
+
+# 1 写入（LRC 逐行；时间戳必须 mm:ss.xx —— 分钟两位、小数两到三位）
+cat > /tmp/song.lrc <<'LRC'
+[ti:小星星]
+[00:00.00]一闪一闪亮晶晶
+[00:04.00]满天都是小星星
+LRC
+acapella lyrics set --text @/tmp/song.lrc
+
+# 2 读回：format 必须是 lrc、timedLineCount > 0、plainText = false
+acapella lyrics get --limit 5
+
+# 3 对不上就挪时间轴（不要重发整份词）
+acapella lyrics offset --by -0.3
+```
+
+**改已有歌词**（保时间戳的往返）：
+
+```bash
+acapella lyrics get --raw | jq -r .text > /tmp/cur.lrc   # 原格式回吐（含 [ti:]/[offset:]）
+# …改几个字…
+acapella lyrics set --text @/tmp/cur.lrc
+```
+
+**坑**：
+
+- **写进去 ≠ 对上了**。纯文本（没有时间戳）存得进、看得见，但面板不跟随播放、双击不跳转。
+  判断只看 `plainText` / `timedLineCount`，不要看 `hasLyrics`。
+- **`[0:12]` / `[00:12]` 不是合法 LRC**（缺百分秒）：不报错，整份降级成纯文本，
+  方括号原样显示成正文。返回值 `plainText = true` + 一条 warning 就是这个情况。
+- **`--offset` 省略即归零**：换了一份新词，旧的同步偏移对它没意义。换词时把偏移一起给。
+- **歌词只属于当前打开的工程**，整首歌一份。要给别的工程写，先 `project open`。
+- **只挪时间轴用 `lyrics offset`**（`--by` 相对 / `--to` 绝对 / `--reset`），一次 0.2～0.5 秒。
+- 逐词（`[mm:ss.xx]词` 或 `[mm:ss.xx]<mm:ss.xx>词`）能按词高亮；只有逐行也够用，先求对得上。
