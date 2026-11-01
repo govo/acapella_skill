@@ -1,8 +1,8 @@
 ---
 name: acapella-arranger
-description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、**换 MIDI 轨音色（人声元音 / 乐器）**、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""换个音色/换个元音""这段人声换成呜或噢""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
+description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、**换 MIDI 轨音色（人声元音 / 乐器）**、**按声部配人声音色（元音怎么分、男女几比几）**、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""换个音色/换个元音""这段人声换成呜或噢""用什么元音/男女声怎么分""阿卡贝拉用什么音色""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
 metadata:
-  version: "0.5.0"
+  version: "0.5.1"
   requires: acapella 0.5.0+
 compatibility: 需要 macOS 14+ 与 Acapella.app；`acapella` 装在 PATH 里（brew tap govo/tap && brew trust govo/tap && brew install acapella），App 设置页「AI 控制」已打开。
 allowed-tools: Bash(acapella:*) Bash(${CLAUDE_SKILL_DIR}/scripts/*)
@@ -116,7 +116,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 音色（钢琴卷帘的 timbre）与免费边界
 
-MIDI 轨的音色分两类，共 22 个：**非人声 7 个**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）、
+MIDI 轨的音色分两类，共 23 个：**非人声 7 个**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）、
 **人声元音 8 个 × 男女 = 16 个**。一条轨一个音色，改它会**重渲染这条轨**。
 
 ```bash
@@ -146,6 +146,33 @@ acapella track instrument <track> synth.choirOoh --dry-run
 
 不确定档位时先读 `caps.features.instruments`：`freeSelectable` / `lockedForFree` / `keepExisting` 都在里面，
 比试错快。
+
+### 编阿卡贝拉时默认用什么音色
+
+**用户没提音色，就按这套做，不要拿方波凑数**（MIDI 轨默认音色是 `synth.square`，直接写字会编出一支电子乐队）：
+
+| 声部 | 默认音色 | 命令 |
+| --- | --- | --- |
+| Soprano / Alto | 女声「啊」 | `track instrument <轨> ah --voice female` |
+| Tenor / Bass | 男声「啊」 | `track instrument <轨> ah --voice male` |
+
+四声部**唱同一个元音**是刻意的：真实合唱团同一时刻唱同一个字，四个声部各唱各的元音，
+听感立刻从「一支队伍」变成「四个合成器」。要换风格就**整首**换（呜 / 噢 / 嗯 / 咦 / 哦呜 / 嘿 / 啊呀），
+不要按声部拆开配。
+
+三条决定「怎么分」的硬约束（详细表在 `references/voices.md`，含元音 × 声部适配矩阵）：
+
+1. **一条轨只有一个音色**（`instrumentID` 是轨级字段）→ 「主歌唱呜、副歌唱啊」必须拆轨，轨数翻倍。
+   想要段落对比优先改织体（音区 / 密度 / 力度），不要动元音。
+2. **每个音色内部已是三副嗓子**（三路刻意失谐 + 共振峰各差 20%）→ 别复制同音轨"加厚"，只会变糊。
+3. **男女声在音色内部已按响度配平**（女声 gain 2.0 / 男声 1.70）→ 混音给同一档音量；
+   「男声听着小」通常是元音选错（F1 离基频太远），不是音量问题，别用 +3 dB 去补。
+
+免费档只有「啊」：要么四声部全唱 `ah`（纯人声，低音会偏薄），要么把 Bass 换成 `synth.bass`
+（低频实，但**不再是纯人声**）—— 这两条要问用户选哪个，别自己替他决定。
+
+**用户说了音色就照用户的**，不许"顺手优化"成你觉得更好听的元音；只在他没考虑过时给默认方案，
+并在交付时说一句「我用了全团「啊」，想换元音告诉我」。
 
 ## 读懂 state
 
@@ -295,19 +322,27 @@ acapella track audio restore drums                             # 7 反悔（分�
 或明确要「每个人唱一个声部」。**不是**「给主唱加点和声」（那是工作流 D）。
 
 ```bash
-acapella choir voices                          # 1 音域表 + 约束（只读，不建轨）
-acapella key get                               # 2 调性是编曲前提，没有就 key set
-acapella track add --kind midi --name Bass     # 3 一人一轨：四声部 = 四次
+acapella instrument list                       # 1 先看档位：pro / freeVowels / lockedVowels
+acapella choir voices                          # 2 音域表 + 约束（只读，不建轨）
+acapella key get                               # 3 调性是编曲前提，没有就 key set
+acapella track add --kind midi --name Bass     # 4 一人一轨：四声部 = 四次
 acapella track add --kind midi --name Tenor
 acapella track add --kind midi --name Alto
 acapella track add --kind midi --name Soprano
-# 4 每个声部写一份 notes JSON：[{start,duration,pitch,velocity}]，一次写完一条轨
+
+# 5 先定音色，再写音符（顺序反了会白渲染一次）—— 见 references/voices.md
+acapella track instrument <Bass>    ah --voice male
+acapella track instrument <Tenor>   ah --voice male
+acapella track instrument <Alto>    ah --voice female
+acapella track instrument <Soprano> ah --voice female
+
+# 6 每个声部写一份 notes JSON：[{start,duration,pitch,velocity}]，一次写完一条轨
 acapella notes replace <Bass>    --notes @bass.json
 acapella notes replace <Tenor>   --notes @tenor.json
 acapella notes replace <Alto>    --notes @alto.json
 acapella notes replace <Soprano> --notes @soprano.json
-acapella qc notes                              # 5 音域 / 重叠
-acapella qc mix                                # 6 平衡 / 削波
+acapella qc notes                              # 7 音域 / 重叠
+acapella qc mix                                # 8 平衡 / 削波
 ```
 
 硬约束（完整版在 `choir voices` 的 `rules` 里，这里只列最容易犯的）：
@@ -322,6 +357,9 @@ acapella qc mix                                # 6 平衡 / 削波
 6. **和声别拖**：一个和弦最多撑两小节。没有乐器维持，长音会塌。
 7. **力度当配器用**：内声部（A/T）0.55–0.7，外声部（S/B）0.75–0.9。四条都 0.8 像管风琴。
 8. **写形式，不要写循环**。主歌 / 副歌 / 桥段换 voicing；原样复制粘贴正是 `choir create` 干的事。
+9. **音色：一人一个音色，全团同一个元音**（默认 `ah`）。S/A 用 `--voice female`、T/B 用 `--voice male`。
+   别让四个声部各唱一种元音（那是四个合成器，不是合唱团），也别让女声唱 Bass 音域。
+   分元音 / 改配置 / 免费档降级看 `references/voices.md`。
 
 验收：
 
@@ -333,8 +371,9 @@ acapella qc mix                                # 6 平衡 / 削波
 > 装不下就如实告诉用户（升级，或退成二声部），不要在第三条轨上撞 `LIMIT_REACHED`。
 >
 > 音色同理：免费用户的人声声部只能唱「啊」（`--instrument ah`，女声 / 男声各自一份）。
-> 想要四个不同元音的「嘟·哇·哼·啊」效果，先看 `caps.features.instruments`，
-> 免费档做不出来就直说，不要一条条撞 `vocal_vowel_pro`。
+> 先看 `caps.features.instruments`，免费档做不出来就直说，不要一条条撞 `vocal_vowel_pro`。
+> 免费档还有第二个选择：把 Bass 换成 `synth.bass`（免费、低频实，但不再是纯人声）——
+> 要不要牺牲「纯人声」由用户定，别替他选。
 
 ## 交付前自检（每次都要跑）
 
@@ -354,6 +393,8 @@ acapella qc mix                                # 6 平衡 / 削波
 [ ] 阿卡贝拉：相邻声部间距 ≤ 八度（T–B 十二度），没有连续平行五 / 八度
 [ ] 音色：改过音色的轨 `track list` 里的 `instrumentId` 就是你要的那一个（免费档别出现锁定元音）
 [ ] 音色：轨道原本就有的锁定元音**没被你改回**「啊」（`instrumentLocked` 是状态，不是待修的错）
+[ ] 阿卡贝拉：每条声部轨的音色是**人声元音**（`vocal = true`），不是方波 / 正弦凑出来的
+[ ] 阿卡贝拉：全团同一个元音（除非用户明确要分层），S/A 是 `--voice female`、T/B 是 `male`
 [ ] 导出文件存在，时长 ≈ project.duration（只在循环里导出时 ≈ b − a）
 ```
 
@@ -380,6 +421,10 @@ acapella qc mix                                # 6 平衡 / 削波
 - ❌ 用 `choir create` 连发四次充当四声部 —— 每条只产出一条模板线（低音 / 琶音 / 平行），四条各自为政，不是互相咬合的织体。
 - ❌ 把整个合唱团写进一条 MIDI 轨 —— 音域跨两个八度，听感是合成器垫音；`qc` 看不出来，但人一耳朵就能听出不是四个人。
 - ❌ 给免费用户写 `--instrument ooh` / `oh` / `ee` —— 只有「啊」免费；撞 `vocal_vowel_pro` 前先读 `caps.features.instruments`。
+- ❌ 用默认音色（`synth.square` 方波）凑阿卡贝拉 —— 四条人声轨全用 `--instrument ah`，谁唱哪一声部按 `references/voices.md`。
+- ❌ 四个声部各配一种元音（Bass 嗯 + Tenor 呜 + Alto 啊 + Soprano 咦）当「音色分层」交差 —— 那不是合唱团，是四个音色各唱各的。
+- ❌ 想让「主歌唱呜、副歌唱啊」却只改参数 —— 一条轨只有一个 `instrumentID`，得拆轨；不想翻倍就改织体。
+- ❌ 看到男声"听着小"就加 3 dB —— 先看是不是让他唱了 `ee` / `ah` 这种高 F1 元音，音色内部男女已配平。
 - ❌ 看到 `instrumentLocked: true` 就去"修正"它 —— 那是**已选过的 Pro 元音**，退回「啊」等于把用户的编曲改坏。
 - ❌ 对 `role = vocalHarmony` 的轨 `track instrument` —— 它是音频，音色改不动（`PRECONDITION_FAILED`）；去换源轨再 `harmony create`。
 

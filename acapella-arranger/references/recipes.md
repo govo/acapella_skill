@@ -267,6 +267,7 @@ acapella track audio restore drums
 ```bash
 # 0 读表：音域 / 舒适区 / 声部角色 / 全部约束（只读，不动工程）
 acapella choir voices | jq '.voices[] | {voice, range, comfort, role}'
+acapella instrument list | jq '{pro, freeVowels, lockedVowels}'     # 0.5 看档位
 
 # 1 建工程与四条人声轨（一人一轨，别合并）
 acapella project create "A Cappella" --bpm 96 --beats-per-bar 4 --bars 32 --key C
@@ -274,6 +275,12 @@ acapella track add --kind midi --name Bass
 acapella track add --kind midi --name Tenor
 acapella track add --kind midi --name Alto
 acapella track add --kind midi --name Soprano
+
+# 1.5 先设音色（新建轨默认是方波，不设就是电子乐队；详情见 references/voices.md）
+acapella track instrument <Bass>    ah --voice male
+acapella track instrument <Tenor>   ah --voice male
+acapella track instrument <Alto>    ah --voice female
+acapella track instrument <Soprano> ah --voice female
 
 # 2 每个声部写一份 notes JSON，再一次写入（每写一条会自动重渲染该轨）
 acapella notes replace <Bass>    --notes @bass.json
@@ -320,5 +327,7 @@ acapella qc mix          # 平衡 / 削波
 - **避开连续平行五度 / 八度**：裸织体里它们会糊成一条粗线。
 - **力度当配器**：内声部（A/T）0.55–0.7，外声部（S/B）0.75–0.9。四条都 0.8 像管风琴。
 - **写形式，不写循环**：主歌 / 副歌 / 桥段换 voicing。原样复制粘贴正是模板生成干的事。
+- **音色是这版的主角**：不设音色 = 四条方波。四声部默认全唱「啊」（S/A 女声、T/B 男声），
+  换风格就整首换一个元音，别按声部拆；免费档只有「啊」。全表见 `references/voices.md`。
 - **额度**：手写四声部要 4 条 MIDI 轨，免费档可能装不下。先看 `caps`，装不下就告诉用户。
 

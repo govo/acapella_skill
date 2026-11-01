@@ -1,6 +1,6 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.5.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.5.1，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
 共 72 条命令。
 
@@ -166,9 +166,9 @@
 | `instrument list` | 音色清单：id / 名称 / 是不是人声 / 当前档位能不能选 |
 
 **`instrument list`**
-> 22 个音色分两类：
+> 23 个音色分两类：
 > - **非人声**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）：免费全放开；
-> - **人声元音**（啊 / 呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿，男女各一份）：
+> - **人声元音**（啊 / 呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿，男女各一份）：共 16 个，
 >   免费档只能用**啊**（`synth.choirAh` / `synth.choirAhMale`）。
 > 返回里 `freeTier` 是"免费档能不能选"，`selectable` 是"你当前这个档位能不能选"。
 > 两者都为 false 时别硬写：换成非人声音色，或 `--instrument ah`。

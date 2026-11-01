@@ -19,28 +19,36 @@
 判断口径：用户说「丰富主唱」「加点和声」→ 第一条；说「铺个低音线」「来个琶音」→ 第二条；
 说「阿卡贝拉」「无伴奏合唱」「四个人四个声部」「合唱团」→ 第三条。
 
-### 0.1 第三条的音色怎么选
+### 0.1 第三条的音色：默认用人声，别用方波
 
 `choir create` 铺出来的轨用的是非人声音色（低音 `synth.bass` / 琶音 `synth.electricPiano` /
 长音 `synth.sine`）—— 它们**免费档全开**，不用管档位。
 
-手写阿卡贝拉（第三条）才会用到人声元音：8 个元音 × 男女 = 16 个 id。
+手写阿卡贝拉（第三条）不一样：**新建的 MIDI 轨默认是 `synth.square` 方波**，什么都不设就写音符，
+编出来的是一支电子乐队，不是人声。所以第一件事就是给人声轨设元音：
+
+| 声部 | 音色 | 命令 |
+| --- | --- | --- |
+| Soprano / Alto | 女声「啊」 | `track instrument <轨> ah --voice female` |
+| Tenor / Bass | 男声「啊」 | `track instrument <轨> ah --voice male` |
+
+**四声部唱同一个元音**是刻意的：真实合唱团同一时刻唱同一个字。各声部配不同元音
+（Bass 嗯 / Alto 啊 / Soprano 咦）听起来是四个合成器，不是一支队伍。
 
 | 档位 | 能选 |
 | --- | --- |
 | 免费 | 只有**「啊」**：`synth.choirAh`（女）/ `synth.choirAhMale`（男） |
 | Pro | 全部 16 个（呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿 + 啊） |
 
-```bash
-acapella track instrument <Soprano> ah --voice female
-acapella track instrument <Tenor>   ah --voice male
-```
-
 - 给免费用户编声部就用 `ah`，别写 `ooh` / `ee` —— 会 `LIMIT_REACHED`（`vocal_vowel_pro`）。
-- 想复刻「嘟 · 哇 · 哼」的多音节织体：免费档做不到，先看 `caps.features.instruments` 再决定
-  （要么降级成纯「啊」的织体，要么如实告诉用户这是 Pro 能力）。
+- 免费档的低音会偏薄（`ah` 的 F1 850 离 Bass 基频太远），可换 `synth.bass` 顶替，
+  但那就**不是纯人声**了 —— 由用户选。
+- 一条轨只有一个音色，所以「主歌唱呜、副歌唱啊」要拆轨；想省钱就改织体别改元音。
 - 轨道上**已经存着**的 Pro 元音（`instrumentLocked: true`）照常出声、照样能写音符，
   **不要**为了"合规"改回「啊」。详见 `SKILL.md` 的「音色与免费边界」。
+
+元音 × 声部适配矩阵、男女配置（SATB / SSA / TTB / 二声部）、三条可直接抄的预设方案、
+混音比例与声像，全在 **`references/voices.md`**。
 
 ---
 
@@ -176,7 +184,7 @@ MIDI 合唱轨反过来，`noteCount > 0` 才算编出来了。
 | Tenor 男高音 | C3–A4（48–69） | E3–G4 | 内声部偏低，常与 Alto 交叉 |
 | Bass 男低音 | E2–E4（40–64） | G2–C4 | 和声地基，根音 / 五度 |
 
-建法与八条硬约束见 SKILL.md **工作流 F**。这里只补三条容易忽略的：
+建法与九条硬约束见 SKILL.md **工作流 F**。这里只补四条容易忽略的：
 
 1. **为什么不能用 `harmony create` 顶替**：它是对主唱音频逐帧移调，产出的是
    「同一个人唱的另一个音高」。阿卡贝拉要的是**四个声部同时存在、互相咬合**，
@@ -186,3 +194,6 @@ MIDI 合唱轨反过来，`noteCount > 0` 才算编出来了。
    听感是四条陪衬线，不是一首合唱。
 3. **额度先看清**：生成路线只占真声合唱额度，手写四声部要 4 条 MIDI 轨。
    先看 `caps`，装不下就如实告诉用户（升级或退成二声部），别在第三条轨上撞 `LIMIT_REACHED`。
+4. **音色必须先设、再写音符**：新建 MIDI 轨默认是方波。先 `track instrument … ah --voice female|male`
+   把四条轨都设成人声元音，再 `notes replace` —— 顺序反了会白渲染一次（每写一条音符都会重渲染）。
+   具体怎么分元音、男女怎么配，见 `references/voices.md`。
