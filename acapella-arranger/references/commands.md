@@ -1,8 +1,8 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.4.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.5.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
-共 70 条命令。
+共 72 条命令。
 
 ## 会话
 
@@ -61,6 +61,7 @@
 | `track mix <track> [--volume -3dB] [--pan L20] [--mute on] [--solo on]` | 调一条轨的音量 / 声像 / 静音 / 独奏 |
 | `track fold <track> [on\|off]` | 折叠 / 展开轨道（只影响显示） |
 | `track render <track>` | 把 MIDI 轨渲染成音频（写完音符统一渲染一次） |
+| `track instrument <track> <instrument> [--voice male]` | 换 MIDI 轨的音色（免费档：非人声全放开 + 人声只能用「啊」） |
 
 **`track get`**
 > 读的是播放引擎真正调度的那个文件。分轨给源文件；MIDI / 合唱 / take 给整曲对齐的
@@ -78,6 +79,14 @@
 **`track mix`**
 > 音量写 0.7 或 -3dB 都行；声像写 L30 / R15 / -0.3 / 0。
 > 注意 solo 会让其他轨在导出里变静音 —— 返回值里会带 warning。
+
+**`track instrument`**
+> 写完整 id（`synth.piano`）、去掉 `synth.` 的简写（`piano` / `choir.ooh`），
+> 或元音短名（`ah` / `ooh` / `oh` / `mm` / `aya` / `ee` / `oohoh` / `hey`）。
+> 元音短名默认女声，`--voice male` 换男声。清单见 `acapella instrument list`。
+> 会**重渲染这条轨**（换音色就是换声音），音符不动。
+> 免费档只允许：任意非人声音色 + 人声的「啊」。选别的元音会收到 `LIMIT_REACHED`
+> （`feature: vocal_vowel_pro`）。已经存着 Pro 元音的轨道不会被这条命令改回「啊」。
 
 ## 音频
 
@@ -149,6 +158,23 @@
 > 纯拍数写 beat:2 或 2beats，秒写 0.5。
 > pitch 接受 C4 / F#3 / 60，velocity 接受 0.8 或 102。
 > 批量写完只渲染一次，不要逐条渲染。
+
+## 音色
+
+| 命令 | 作用 |
+| --- | --- |
+| `instrument list` | 音色清单：id / 名称 / 是不是人声 / 当前档位能不能选 |
+
+**`instrument list`**
+> 22 个音色分两类：
+> - **非人声**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）：免费全放开；
+> - **人声元音**（啊 / 呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿，男女各一份）：
+>   免费档只能用**啊**（`synth.choirAh` / `synth.choirAhMale`）。
+> 返回里 `freeTier` 是"免费档能不能选"，`selectable` 是"你当前这个档位能不能选"。
+> 两者都为 false 时别硬写：换成非人声音色，或 `--instrument ah`。
+> `keepExistingVowel: true` 说的是另一件事：轨道上**已经存着**的 Pro 元音
+> （付费期选的 / 别人分享的工程）**不会被回退**，照旧出声、照旧能写音符。
+> 不要为了"合规"把它改回「啊」—— 那是把用户的编曲改坏。
 
 ## 走带
 

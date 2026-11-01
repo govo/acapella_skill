@@ -116,6 +116,8 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 | 用户要「四人阿卡贝拉」，你交了 `harmony create` 的结果 | 那是对主唱移调渲染，产出「同一个人唱的另一个音高」，四个独立声部根本没出现 | 那份结果当和声留着可以，但阿卡贝拉本体得 `track add --kind midi` × N + 自己写音符（工作流 F） |
 | 建到第三条 MIDI 轨回 `LIMIT_REACHED` | 免费档每工程 MIDI 轨数有限（四声部要 4 条） | 先看 `caps` 的额度再规划；装不下就如实告诉用户（升级或退二声部），**不要**偷偷删掉用户别的轨 |
 | 四条轨都有音符，听着却像合成器铺底 | 声部跨界、间距开洞、连续平行五度/八度、四条力度一模一样 | 拿 `choir voices` 的 `voices` + `rules` 逐条对：音域、八度间距、平行进行、velocity 分层 |
+| `track instrument … ooh` 回 `LIMIT_REACHED`（`feature: vocal_vowel_pro`） | 免费档的人声只用能用「啊」，其余 7 个元音是 Pro | 换成 `--instrument ah`（或任意非人声音色）；想知道还能选什么用 `acapella instrument list` / `caps.features.instruments` |
+| 某条轨 `instrumentLocked: true`，你担心"不合规" | 那是**已经选过**的 Pro 元音（付费期选的 / 别人分享的工程），照常出声照常可编辑 | **什么都别做**。它只是不能再被重新选中；改回「啊」等于把用户的编曲改坏 |
 
 `choir create` 连发四次**不会**变成四声部：它每次只按和弦算一条线、不读别的声部，
 四条线不会互相避让（撞音、平行五度、间距开洞都会出现）。

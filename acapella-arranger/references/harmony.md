@@ -19,6 +19,29 @@
 判断口径：用户说「丰富主唱」「加点和声」→ 第一条；说「铺个低音线」「来个琶音」→ 第二条；
 说「阿卡贝拉」「无伴奏合唱」「四个人四个声部」「合唱团」→ 第三条。
 
+### 0.1 第三条的音色怎么选
+
+`choir create` 铺出来的轨用的是非人声音色（低音 `synth.bass` / 琶音 `synth.electricPiano` /
+长音 `synth.sine`）—— 它们**免费档全开**，不用管档位。
+
+手写阿卡贝拉（第三条）才会用到人声元音：8 个元音 × 男女 = 16 个 id。
+
+| 档位 | 能选 |
+| --- | --- |
+| 免费 | 只有**「啊」**：`synth.choirAh`（女）/ `synth.choirAhMale`（男） |
+| Pro | 全部 16 个（呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿 + 啊） |
+
+```bash
+acapella track instrument <Soprano> ah --voice female
+acapella track instrument <Tenor>   ah --voice male
+```
+
+- 给免费用户编声部就用 `ah`，别写 `ooh` / `ee` —— 会 `LIMIT_REACHED`（`vocal_vowel_pro`）。
+- 想复刻「嘟 · 哇 · 哼」的多音节织体：免费档做不到，先看 `caps.features.instruments` 再决定
+  （要么降级成纯「啊」的织体，要么如实告诉用户这是 Pro 能力）。
+- 轨道上**已经存着**的 Pro 元音（`instrumentLocked: true`）照常出声、照样能写音符，
+  **不要**为了"合规"改回「啊」。详见 `SKILL.md` 的「音色与免费边界」。
+
 ---
 
 ## 1. 三节菜单与命令的对应关系

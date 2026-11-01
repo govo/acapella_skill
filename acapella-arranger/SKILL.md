@@ -1,9 +1,9 @@
 ---
 name: acapella-arranger
-description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
+description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、**换 MIDI 轨音色（人声元音 / 乐器）**、按界面右键菜单生成真声合唱与 MIDI 合唱、**手写多人阿卡贝拉合唱（SATB 一人一轨）**、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""做个阿卡贝拉合唱团""无伴奏合唱""四个人四个声部""生成真声合唱""来个 MIDI 合唱/低音线/琶音""换个音色/换个元音""这段人声换成呜或噢""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
 metadata:
-  version: "0.4.0"
-  requires: acapella 0.4.0+
+  version: "0.5.0"
+  requires: acapella 0.5.0+
 compatibility: 需要 macOS 14+ 与 Acapella.app；`acapella` 装在 PATH 里（brew tap govo/tap && brew trust govo/tap && brew install acapella），App 设置页「AI 控制」已打开。
 allowed-tools: Bash(acapella:*) Bash(${CLAUDE_SKILL_DIR}/scripts/*)
 ---
@@ -49,7 +49,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 命令地图
 
-全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 63 条，另有本地命令（`doctor` `rpc` `upload` `download` `help` `docs` `job wait`）。
+全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 64 条，另有 8 条本地命令（`doctor` `rpc` `upload` `download` `auth set-token/status/clear` `help` `docs` `job wait`）。
 日常只用这几组：
 
 | 组 | 代表命令 |
@@ -57,6 +57,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | 会话 | `state` `caps` `history` `job get` |
 | 工程 | `project list/get/create/open/close/rename/star/delete` |
 | 轨道 | `track list/add/get/rename/delete/move/mix/fold/render` |
+| 音色 | `instrument list` `track instrument` |
 | 音符 | `notes get/replace/patch/analyze` |
 | 调性 | `key get/set` |
 | 合唱 | `harmony options/create` `choir options/create/voices` |
@@ -113,6 +114,39 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 `track get` 给具体文件、时长、采样率、take 元数据（起点 / 时长 / trim）；`notes get` 给音符；
 `take list` 还给 peak / RMS / 是否削波 —— 写完音频要用它确认"真的有声"，不要靠猜。
 
+## 音色（钢琴卷帘的 timbre）与免费边界
+
+MIDI 轨的音色分两类，共 22 个：**非人声 7 个**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）、
+**人声元音 8 个 × 男女 = 16 个**。一条轨一个音色，改它会**重渲染这条轨**。
+
+```bash
+acapella instrument list                                  # 清单：id、是不是人声、当前档位能不能选
+acapella track instrument <track> piano                   # 换非人声音色
+acapella track instrument <track> ah --voice male         # 人声元音：短名 + 性别（默认女声）
+acapella track instrument <track> synth.choirOoh --dry-run
+```
+
+| 档位 | 能选的音色 |
+| --- | --- |
+| 免费 | **全部非人声音色** + 人声里的**「啊」**（`synth.choirAh` / `synth.choirAhMale`） |
+| Pro | 16 个人声元音全开（呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿 + 啊） |
+
+四条必须记住的口径：
+
+1. **免费用户只能用「啊」唱**。给免费用户编人声声部时写 `--instrument ah`（或干脆用非人声音色），
+   别写 `ooh` / `oh` / `ee` —— 会拿到 `LIMIT_REACHED`（`feature: vocal_vowel_pro`），白跑一轮。
+2. **已经选过的不退回**。轨道上存着 Pro 元音（付费期选的、别人分享的工程）时
+   `track list` 会显示 `instrumentId: "synth.choirOoh"` 且 `instrumentLocked: true` ——
+   这条轨**照常出声、照常能写音符、照常能渲染**。`instrumentLocked` 只说"免费档不能重新选"。
+   **绝对不要**为了"合规"把它改回「啊」或方波：那是把用户已经编好的东西改坏。
+3. **同一个音色再设一次不算换**（`target == current` 放行），所以"重设成它现在的音色"永远是安全的。
+   真正被拦的只有"换成**另一个**锁定元音"。
+4. **真声合唱轨不能换音色**（`role = vocalHarmony`，内容是音频）：改它会 `PRECONDITION_FAILED`。
+   它在卷帘里的音色只作用于参照音符，声音来自主唱移调 —— 要改就去换源轨再 `harmony create`。
+
+不确定档位时先读 `caps.features.instruments`：`freeSelectable` / `lockedForFree` / `keepExisting` 都在里面，
+比试错快。
+
 ## 读懂 state
 
 ```jsonc
@@ -129,7 +163,9 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
     { "token": "vocals", "kind": "stem", "role": "leadVocal", "hasAudio": true,
       "volume": 1, "pan": 0, "isMuted": false, "isSoloed": false, "noteCount": 0 },
     { "token": "midi:6F1C…", "kind": "midi", "name": "Harmony 3", "hasAudio": true,
-      "volume": 0.5, "pan": -0.25, "noteCount": 412, "fx": { "bypassed": false } }
+      "volume": 0.5, "pan": -0.25, "noteCount": 412, "fx": { "bypassed": false },
+      "instrumentId": "synth.choirAh", "instrumentName": "女声和声·啊",
+      "vocal": true, "instrumentLocked": false }
   ],
   "sections": [ { "name": "副歌", "start": { "seconds": 61.2, "bar": "17:1" }, "duration": 30.1 } ]
 }
@@ -144,6 +180,8 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
   「调性」指的是 `sections` / `spans` 这条**调性轨**；`detected` 只是和弦面板「指定调号」
   下拉的值，仅在取调链第 4 顺位兜底。判断"调性准不准"看 `hasKeyTrack` / `spans` / `effective`。
 - `tracks[].hasAudio = false` 的 MIDI 轨是**幽灵轨**：写了音符但没 `track render`，听不到。
+- `tracks[].instrumentId` 是这条轨的音色（落盘值，跟着工程走）；`vocal = true` 表示人声元音；
+  `instrumentLocked = true` 表示**当前档位不能再把它选回来**，但轨道照样能用（见「音色与免费边界」）。
 - `role` 只有五种，和界面上的轨道种类一一对应：`recording`（录音轨）/ `midi`（MIDI 声部轨）/
   `choir`（MIDI 合唱，生成器产出）/ `vocalHarmony`（真声合唱，内容是音频）/ `take`（TAKE 子轨）。
   **能不能接 take 看 `isRecordingTrack`，不要看 `role`**（真声合唱轨也能挂 take）。
@@ -293,6 +331,10 @@ acapella qc mix                                # 6 平衡 / 削波
 
 > 免费档每工程的 MIDI 轨数有限，四声部可能装不下。**先看 `caps` 的额度**；
 > 装不下就如实告诉用户（升级，或退成二声部），不要在第三条轨上撞 `LIMIT_REACHED`。
+>
+> 音色同理：免费用户的人声声部只能唱「啊」（`--instrument ah`，女声 / 男声各自一份）。
+> 想要四个不同元音的「嘟·哇·哼·啊」效果，先看 `caps.features.instruments`，
+> 免费档做不出来就直说，不要一条条撞 `vocal_vowel_pro`。
 
 ## 交付前自检（每次都要跑）
 
@@ -310,6 +352,8 @@ acapella qc mix                                # 6 平衡 / 削波
 [ ] notes 音域在 references/music.md 表内（越界会被听出来）
 [ ] 阿卡贝拉：每条声部轨 `noteCount > 0`，且 `notes get` 的最高/最低音在该声部 `range` 内
 [ ] 阿卡贝拉：相邻声部间距 ≤ 八度（T–B 十二度），没有连续平行五 / 八度
+[ ] 音色：改过音色的轨 `track list` 里的 `instrumentId` 就是你要的那一个（免费档别出现锁定元音）
+[ ] 音色：轨道原本就有的锁定元音**没被你改回**「啊」（`instrumentLocked` 是状态，不是待修的错）
 [ ] 导出文件存在，时长 ≈ project.duration（只在循环里导出时 ≈ b − a）
 ```
 
@@ -335,6 +379,9 @@ acapella qc mix                                # 6 平衡 / 削波
 - ❌ 用 `harmony create` 交付「阿卡贝拉合唱团」—— 那是对主唱做移调渲染，你一个音符都没写；用户要的多人合唱没有发生。
 - ❌ 用 `choir create` 连发四次充当四声部 —— 每条只产出一条模板线（低音 / 琶音 / 平行），四条各自为政，不是互相咬合的织体。
 - ❌ 把整个合唱团写进一条 MIDI 轨 —— 音域跨两个八度，听感是合成器垫音；`qc` 看不出来，但人一耳朵就能听出不是四个人。
+- ❌ 给免费用户写 `--instrument ooh` / `oh` / `ee` —— 只有「啊」免费；撞 `vocal_vowel_pro` 前先读 `caps.features.instruments`。
+- ❌ 看到 `instrumentLocked: true` 就去"修正"它 —— 那是**已选过的 Pro 元音**，退回「啊」等于把用户的编曲改坏。
+- ❌ 对 `role = vocalHarmony` 的轨 `track instrument` —— 它是音频，音色改不动（`PRECONDITION_FAILED`）；去换源轨再 `harmony create`。
 
 ## 出错时
 
