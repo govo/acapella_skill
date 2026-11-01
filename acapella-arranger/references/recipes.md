@@ -209,3 +209,52 @@ scripts/demo_twinkle.py --style folk --bpm 126 # 民谣 126 BPM，去掉和声
 
 导出文件名里带轨道短 id（`...-midi-lead-a7aa-...`），因为四条轨可能都叫「主旋律」，
 中文轨名 slug 化之后会撞车；短 id 保证唯一，且同一工程两次导出稳定同名。
+
+---
+
+## 配方 8：换掉某一条轨的声音（取出 → 处理 → 放回 → 撤回）
+
+适用：换鼓、换主唱、把 AI 重新生成的一轨分轨放回去、给一条轨重做 EQ / 降噪。
+
+```bash
+# 0 先认轨：token、kind、role、hasAudio
+acapella track list | jq '.tracks[] | {token, kind, role, hasAudio, durationSeconds}'
+
+# 1 取出（唯一出口：App 在沙盒里，CLI 读不到它的容器）
+acapella track audio export drums --out /tmp/drums.m4a
+
+# 2 随便怎么处理，产物必须是能解码的音频
+ffmpeg -i /tmp/drums.m4a -af 'highpass=f=40,volume=-6dB' -c:a aac -b:a 320k /tmp/drums-2.m4a
+
+# 3 推回容器 → 拿 fileId
+FID=$(acapella upload /tmp/drums-2.m4a | jq -r .fileId)
+
+# 4 先预演（什么都不写），再真换
+acapella track audio replace drums --file "$FID" --dry-run
+acapella track audio replace drums --file "$FID" --confirm
+
+# 5 读回：replaced=true，且文件真的换了
+acapella track audio export drums --out /tmp/drums-check.m4a
+shasum -a 256 /tmp/drums.m4a /tmp/drums-check.m4a
+
+# 6 反悔（只对分轨有效）
+acapella track audio restore drums
+```
+
+**坑**：
+- **别试图直接读容器**：`~/Library/Containers/online.c1c1.acapella/…` 在 shell 里是
+  `Operation not permitted`。`export` 是唯一的出口，`replace` 是唯一的入口。
+- **口径不用自己补**：落盘一律 44.1 kHz 立体声、第 0 帧 = 歌曲 0 秒。换进来的素材
+  采样率/声道/长度都可以不一样，`replace` 会重采样 + 补静音 + 截断。
+- **`--at` 慎用**：分轨不给 `--at` 就是 0 秒对齐（整曲对齐口径）。给了 `--at 9:1`，
+  前 9 秒会变成静音。
+- **`--fit reject` 会拒长度不符的**：容差 0.25 s（解码取整），但落在容差内的缺口会在
+  `warnings` 里说"末尾 X 秒是静音"—— 不要忽略。
+- **派生轨不跟随**：换掉 `drums` 后 `Drums Other`（残差轨）与由它派生的真声合唱仍是旧渲染。
+  要一致就重新生成。
+- **两类轨语义不同**：分轨 stem 换文件、可 `restore`；录音 take 换掉 = 覆盖（同 App 里重录），
+  **没有 restore**；真声合唱轨不能换（`UNSUPPORTED`），去换源轨再 `harmony create`；
+  纯 MIDI 轨也不能换（没有音频文件），走 `notes replace` + `track render`。
+- **换完必须重跑 `qc mix`**：新素材常常更响，`peakGuardCeiling = 0.89`（约 −1 dBFS），
+  `peakDbfs` 超过 −0.3 就要 `track mix --volume` 压回来。
+

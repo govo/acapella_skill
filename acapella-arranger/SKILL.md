@@ -2,8 +2,8 @@
 name: acapella-arranger
 description: 用 `acapella` CLI 驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加轨、写音符、按界面右键菜单生成真声合唱与 MIDI 合唱、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""给这首歌编合唱/和声""生成真声合唱""来个 MIDI 合唱/低音线/琶音""定个调""分轨听一下""设一个副歌循环""导出一版混音""这段人声放进工程"，或直接要求 AI 操作 Acapella 时使用。Do not use for pure music-theory questions or audio post-production with no project context.
 metadata:
-  version: "0.1.0"
-  requires: acapella 0.1.0+
+  version: "0.4.0"
+  requires: acapella 0.4.0+
 compatibility: 需要 macOS 14+ 与 Acapella.app；`acapella` 装在 PATH 里（brew tap govo/tap && brew trust govo/tap && brew install acapella），App 设置页「AI 控制」已打开。
 allowed-tools: Bash(acapella:*) Bash(${CLAUDE_SKILL_DIR}/scripts/*)
 ---
@@ -49,7 +49,7 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 
 ## 命令地图
 
-全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 57 条，另有本地命令（`doctor` `rpc` `upload` `help` `docs` `job wait`）。
+全表在 `references/commands.md`（由 `acapella docs` 生成）。**任何命令是否存在，以 `acapella caps` 为准**——文档写着但 `caps` 里没有，一律视为不存在。服务端命令当前 62 条，另有本地命令（`doctor` `rpc` `upload` `download` `help` `docs` `job wait`）。
 日常只用这几组：
 
 | 组 | 代表命令 |
@@ -60,7 +60,8 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | 音符 | `notes get/replace/patch/analyze` |
 | 调性 | `key get/set` |
 | 合唱 | `harmony options/create` `choir options/create` |
-| 音频 | `upload`（本地）`take import` `take list/get` |
+| 音频 | `upload`（本地）`download`（本地）`take import` `take list/get` |
+| 轨道音频 | `track audio export/replace/restore` |
 | 走带 | `transport play/pause/stop/seek/position/speed/countin` |
 | 循环 | `loop get/set/enable/clear` `section list` |
 | 节拍 | `beat get/set/analyze/downbeat` |
@@ -74,10 +75,16 @@ acapella state      # 2. 把它当唯一事实，不要假设任何状态
 | --- | --- | --- |
 | MIDI | `track add --kind midi` → `notes replace` → `track render` | 自己写的声部、编曲 |
 | 音频 | `upload` → `take import --track <录音轨>` → `track get` 读回 | AI 生成的成品音频、用户给的样本 |
+| 换音 | `track audio export` → 处理 → `upload` → `track audio replace` | 改掉**已有**那一轨的声音（换鼓、换主唱） |
 | 合唱 | `key set` → `harmony create` / `choir create` | 从一段人声派生真声合唱 / MIDI 合唱 |
 
 音频这条路**不能跳步**：`upload` 只把字节搬进容器（不进时间线），`take import` 才写工程。
 落盘是整曲对齐的，`--at` 之前补静音，所以 `durationSeconds`（源音频）与 `fileDurationSeconds`（整曲）是两个数。
+
+**「换音」不是「加音」**：`take import` 是往轨上加一遍新的（已有 take 才需 `--confirm` 覆盖），
+`track audio replace` 是**把这一轨的声音本身换掉**，连分轨 stem 也能换。
+想"改某条轨的音频"就用后者，别绕 `take import` —— 分轨 stem 根本挂不上 take。
+取出 → 处理 → 放回 → 反悔，四步闭环见工作流 E。
 
 合唱这条路走的是**界面上右键菜单的同一个入口**（`enqueueHarmonyGeneration` 那条串行队列），
 所以 CLI 建出来的东西与手点出来的一模一样：有音频、有波形、多声部类型落成多条轨。
@@ -203,6 +210,33 @@ acapella state
 
 完整菜单结构、21 种类型、36 个声部串、调性五级链见 `references/harmony.md`。
 
+## 工作流 E：改某一条轨的音频（换鼓、换主唱、把 AI 重做的一轨放回去）
+
+```bash
+acapella track list                                            # 1 先认 token 与 role
+acapella track audio export drums --out /tmp/drums.m4a         # 2 取出来（唯一出口）
+ffmpeg -i /tmp/drums.m4a -af 'highpass=f=40,volume=-6dB' /tmp/drums-2.m4a
+FID=$(acapella upload /tmp/drums-2.m4a | jq -r .fileId)        # 3 推回去
+acapella track audio replace drums --file "$FID" --dry-run     # 4 先看会改成什么
+acapella track audio replace drums --file "$FID" --confirm     # 5 真换
+acapella track audio export drums --out /tmp/drums-check.m4a   # 6 读回：replaced=true
+acapella track audio restore drums                             # 7 反悔（分轨专用）
+```
+
+1. **先 `export` 再动手。** 它的返回里有 `sampleRate` / `channels` / `durationSeconds` /
+   `sourceFile` / `replaced`，替换要对齐的就是这个时长。**不要**自己猜"这一轨多长"。
+2. **口径不用你操心，也别自己补零。** 落盘一律 44.1 kHz 立体声、第 0 帧 = 歌曲 0 秒；
+   `replace` 会重采样、`--at` 之前补静音、超长截断。
+3. **替换写的是新文件**（`<工程>_<轨>_agent.m4a`），原分离文件原地不动 ——
+   所以 `restore` 只是把记录里的文件名指回去，不需要重跑分离。
+4. **`--confirm` 不能省**，破坏性写操作。先 `--dry-run` 看 `wouldReplace`。
+5. **派生轨不跟随。** 换掉 `drums` 之后 `Drums Other`（残差轨）与真声合唱仍是上一次的渲染，
+   `warnings` 会点名。要一致就重新生成，别以为"换了鼓，导出就一定是新鼓"。
+6. **两类轨换法不同**：分轨 stem 换文件、可 `restore`；录音 take 换掉就是覆盖（同 App 里重录一遍），
+   **没有 restore**。真声合唱轨**不能换**（它是从源轨渲染出来的）—— 去换源轨再 `harmony create`。
+7. **验收看三件事**：`replaced = true`、`export` 再取一次**文件确实变了**（大小/时长/sha）、
+   `qc mix` 的 `peak` / `clipped` 仍过关（新素材常常更响，`peakGuardCeiling = 0.89`）。
+
 ## 交付前自检（每次都要跑）
 
 ```
@@ -212,6 +246,8 @@ acapella state
 [ ] key get 的 effective 与用户要求的调一致（不是"大概知道是 C"）
 [ ] 写进去的内容能读回（notes get 与写入一致）
 [ ] 音频轨：`hasAudio = true` 且 `take list` 的 `hasSignal = true`（不是空文件）
+[ ] 换过音的轨：`track audio export` 回来的 `replaced = true`，且文件大小/时长与换之前**不同**
+[ ] 换完再跑一次 `qc mix`：peak < −0.3 dBFS（新素材常更响）
 [ ] qc mix: peak < -0.3 dBFS 且 clipped = false
 [ ] qc mix: 主唱轨 hasSignal = true（不是只剩伴奏）
 [ ] notes 音域在 references/music.md 表内（越界会被听出来）
@@ -231,6 +267,12 @@ acapella state
 - ❌ 忽略 `warnings`（"名字重复已改名"）后继续用旧名字寻址 —— 下一步必 `NOT_FOUND`。
 - ❌ 把 `track render` 当成"写音符" —— 它只把已有音符渲成音频，不写音符。
 - ❌ 空工程里 `project import` —— 它要用户在 App 里选文件（导入成品工程要分离、建记录、算节拍）；自己的音频要走 `upload` + `take import`。
+- ❌ 想直接 `ffmpeg -i ~/Library/Containers/online.c1c1.acapella/…/drums.m4a` —— **读不到**（`Operation not permitted`）。
+  先用 `track audio export` 让它复制到中转区再下载。
+- ❌ 用 `take import` 去"改分轨的鼓" —— 分轨 stem 挂不上 take。改已有音轨的声音只走 `track audio replace`。
+- ❌ `cp` 新音频覆盖容器里的分轨文件 / 改记录 JSON 里的 `stemFileNames` —— 与内存态分叉，App 一保存就还原。
+- ❌ 对真声合唱轨 `track audio replace` —— 它是从源轨渲染出来的，换源轨再 `harmony create`。
+- ❌ 换了鼓就以为导出是新鼓 —— 派生残差轨与真声合唱是旧渲染，看 `warnings`。
 
 ## 出错时
 

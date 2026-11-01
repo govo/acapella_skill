@@ -1,8 +1,8 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.2.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.3.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
-共 66 条命令。
+共 69 条命令。
 
 ## 会话
 
@@ -79,6 +79,60 @@
 > 音量写 0.7 或 -3dB 都行；声像写 L30 / R15 / -0.3 / 0。
 > 注意 solo 会让其他轨在导出里变静音 —— 返回值里会带 warning。
 
+## 音频
+
+| 命令 | 作用 |
+| --- | --- |
+| `track audio export <track> [--out <file>]` | 把一条轨的音频取回本机（AI 拿去处理），默认落在当前目录 |
+| `track audio replace <track> --file <fileId> [--at 1:1] [--fit pad\|reject] [--confirm]` | 用上传的音频替换一条轨的内容（对齐到整曲时间轴） |
+| `track audio restore <track>` | 撤回上一次对分轨的音频替换（原分离文件一直没动） |
+| `upload <file>` | 把本地音频文件推进 App 容器，返回 fileId（给 take import 用） |
+| `take import --file <fileId> --track <track> [--at 1:1] [--name "主唱 1"]` | 把上传的音频写成整曲对齐 WAV，挂到某条录音轨上 |
+| `take list [--track <host>]` | 工程里所有 take：挂在哪条轨、从第几秒开始、多长、有没有声 |
+| `take get <track>` | 读一条 take（给 take 的 token），或一条宿主轨下面的全部 take |
+
+**`track audio export`**
+> 这是唯一能把工程里那段声音取出来的通道：App 在沙盒里，CLI 读不到它的容器，
+> 所以由 App 复制一份到中转区，CLI 再用 `GET /download/<id>` 把字节取走。
+> `--out` 默认是当前目录 + App 建议的文件名（`<工程名>-<轨名>.m4a`）。
+> 分轨给的是分离产物原文件（AAC 320k，44.1 kHz 立体声）；
+> take / 录音轨给的是整曲对齐的 WAV。落地后可以直接用 ffmpeg / sox / 模型处理，
+> 处理完用 `track audio replace` 放回去。
+
+**`track audio replace`**
+> 先 `acapella upload <file>` 拿 fileId，再用这条命令把它变成**这条轨的声音** ——
+> 替换主唱、替换鼓、把 AI 重新生成的一轨分轨放回去，都走这里。
+> 落盘口径与分离产物一致：44.1 kHz 立体声、第 0 帧 = 歌曲 0 秒；
+> `--at` 之前与工程末尾之后补静音，比工程长会在 warnings 里说尾巴放不下。
+> `--fit reject` 改成"长度对不上就报错"，适合严格对齐的场景。
+> **必须带 `--confirm`**（原来的声音不再播放）。分轨的原文件不会被覆盖：
+> 新音频写的是 `<工程>_<轨>_agent.m4a`，随时可以 `track audio restore` 指回去。
+> 换完要重新听一遍就 `track audio export` + `qc mix`。
+
+**`track audio restore`**
+> 只对分轨（stem）有效。分轨替换写的是新文件，原文件原地保留，
+> 所以"还原"只是把记录里的文件名指回去 —— 不需要重新跑分离。
+> 录音 take 换掉就是换掉了（和 App 里重录一遍同语义），这条命令会明确报 UNSUPPORTED，
+> 别去猜"是不是没生效"。
+
+**`upload`**
+> 传的是**文件本身的字节**，不是路径。App 收下后会立刻解码校验：解不开的文件当场报
+> BAD_REQUEST（而不是等到 take import 才失败）。返回值里的 `fileId` 是下一步的入参。
+> 上传只把字节搬进容器，**不进时间线**——真正落进工程要接着跑 take import。
+> 上传区保留 24 小时，过期后 fileId 失效，重新上传即可。
+
+**`take import`**
+> `--track` 给宿主轨：空项目的人声轨（写进它自己）、分轨主唱、或任意 MIDI 轨。
+> **一条目标轨只有一条 take**：宿主上已经有 take 时直接覆盖那一条（整条音频替换），
+> 这时必须加 --confirm；没有才新建。给一条**已有 take** 的 token 效果相同。
+> 落盘口径与录音完全一致：44.1k 立体声、第 0 帧 = 歌曲 0 秒，`--at` 之前的空白由
+> 静音补齐。返回的 `durationSeconds` 是**源音频**长度，`fileDurationSeconds` 是落盘
+> 后的整曲长度——两个数不要混。
+> 例：`acapella upload ~/Desktop/lead.wav` → `acapella take import --file <id> --track midi:… --at 9:1`
+
+**`take list`**
+> 给 `--track` 就只看那条宿主轨下面的。`audio` 里是峰值 / RMS / 是否削波。
+
 ## 音符
 
 | 命令 | 作用 |
@@ -143,8 +197,8 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `key get` | 当前调性轨：逐段调性 / 生效值 / 来源（user 还是 inferred） |
-| `key set --key C [--at 17:1]` | 指定调性（写调性轨；整曲，或在某个时间点加转调） |
+| `key get` | 当前调性轨：逐段主调 + 调式 / 生效值 / 来源（user 还是 inferred） |
+| `key set --key D [--mode dorian] [--at 17:1]` | 指定调性（写调性轨；整曲，或在某个时间点加转调） |
 
 **`key get`**
 > `hasKeyTrack` / `sections` / `spans` 才是「调性」—— 调性轨上的分段。
@@ -156,8 +210,11 @@
 > 写的是**调性轨**（`sections` / `spans`），不是和弦面板那个「指定调号」下拉
 > （那个字段是 `detected`）。两者是两份数据，优先级也不同：渲染器取调时
 > 调性轨排第一，`detected` 只排第四。
+> 调性 = **主调 + 调式**：`--key` 给主音（C / F# / Bb / Am），`--mode` 给调式
+> （major / naturalMinor / harmonicMinor / dorian / phrygian / lydian / mixolydian / locrian）。
+> 省略 `--mode` 时按调名后缀解释：`Am` → 小调、`C` → 大调。
 > 省略 `--at` = 整曲首段（0 秒、来源 `user`）；给 `--at` = 在该处加转调点再选调
-> （等价界面「加转调点」→「选调」两步）。
+> （等价界面「加转调点」→「选主调」→「选调式」三步）。
 > 非法调名当场拒绝；调性轨被锁时会返回 PRECONDITION_FAILED。
 
 ## 合唱
@@ -178,33 +235,6 @@
 
 **`choir create`**
 > 声部串必须来自 `choir options`（与菜单项一一对应）；同样会等到渲染完成。
-
-## 音频
-
-| 命令 | 作用 |
-| --- | --- |
-| `upload <file>` | 把本地音频文件推进 App 容器，返回 fileId（给 take import 用） |
-| `take import --file <fileId> --track <track> [--at 1:1] [--name "主唱 1"]` | 把上传的音频写成整曲对齐 WAV，挂到某条录音轨上 |
-| `take list [--track <host>]` | 工程里所有 take：挂在哪条轨、从第几秒开始、多长、有没有声 |
-| `take get <track>` | 读一条 take（给 take 的 token），或一条宿主轨下面的全部 take |
-
-**`upload`**
-> 传的是**文件本身的字节**，不是路径。App 收下后会立刻解码校验：解不开的文件当场报
-> BAD_REQUEST（而不是等到 take import 才失败）。返回值里的 `fileId` 是下一步的入参。
-> 上传只把字节搬进容器，**不进时间线**——真正落进工程要接着跑 take import。
-> 上传区保留 24 小时，过期后 fileId 失效，重新上传即可。
-
-**`take import`**
-> `--track` 给宿主轨：空项目的人声轨（写进它自己）、分轨主唱（新建 Take 子轨）、
-> 或任意 MIDI 轨（新建 Take 子轨）。给一条**已有 take** 的 token 表示覆盖那条的内容，
-> 这时必须加 --confirm。
-> 落盘口径与录音完全一致：44.1k 立体声、第 0 帧 = 歌曲 0 秒，`--at` 之前的空白由
-> 静音补齐。返回的 `durationSeconds` 是**源音频**长度，`fileDurationSeconds` 是落盘
-> 后的整曲长度——两个数不要混。
-> 例：`acapella upload ~/Desktop/lead.wav` → `acapella take import --file <id> --track midi:… --at 9:1`
-
-**`take list`**
-> 给 `--track` 就只看那条宿主轨下面的。`audio` 里是峰值 / RMS / 是否削波。
 
 ## 导出
 
@@ -328,6 +358,22 @@ acapella track get <录音轨>                  # 读回：文件、时长、起
 `upload` 只把字节搬进容器（**不进时间线**），`take import` 才写工程。
 落盘是**整曲对齐**的（第 0 帧 = 歌曲 0 秒），`--at` 之前补静音 —— 这是播放与导出不错位的前提。
 `durationSeconds` = 源音频长度；`fileDurationSeconds` = 落盘后的整曲长度，两个数不要混。
+
+## 一条轨的音频怎么改（取出 → 改 → 放回）
+
+```
+acapella track audio export vocals --out ./vocals.m4a      # 取出来（唯一出口）
+ffmpeg -i ./vocals.m4a -af 'volume=-3dB' ./vocals-fixed.m4a # 随便怎么处理
+FID=$(acapella upload ./vocals-fixed.m4a | jq -r .fileId)
+acapella track audio replace vocals --file "$FID" --confirm
+acapella track audio restore vocals                         # 反悔了，回原版
+```
+
+为什么必须走这条：CLI 读不到 App 的沙盒容器，`export` 的产物由 App 复制到中转区、
+再经 `GET /download/<id>` 发给你；想直接 `ffmpeg` 处理容器里那个文件是不可能的。
+`replace` 落盘是 44.1 kHz 立体声、第 0 帧 = 歌曲 0 秒（与分离产物同口径），
+分轨的原文件不会被覆盖，所以 `restore` 只是把记录指回去。
+录音 take 换掉就是换掉了（与界面重录同一语义），没有 restore。
 
 ## 输出与退出码
 

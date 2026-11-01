@@ -92,6 +92,22 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 | 空工程里 `beat set` 改速 | 空工程的速度在创建时固定 | 新建时给对 `--bpm` |
 | 空工程里 `beat analyze` | 没有可分析的音频（即使已经 `take import`） | 同上：建工程时给对 BPM |
 | `key analyze` | 没有该命令（合唱取调不需要它） | `key get` / `key set` |
+| `track audio replace` 打到**真声合唱轨** | 它的音频是从源轨渲染出来的，不是可替换的文件 | 换源轨，再 `harmony create` |
+| `track audio replace` 打到**纯 MIDI 轨** | 它的声音由音符渲染，没有音频文件 | `notes replace` → `track render` |
+| `track audio restore` 打到**录音 take** | take 换掉等于重录一遍，没有"原文件" | 没有撤销；换回来只能再 `replace` 一次旧素材 |
+
+## 轨道音频（`track audio *`）专有的四个错
+
+| 现象 | 真因 | 处理 |
+| --- | --- | --- |
+| `error: unknown command \`track audio\`` | 手上的 `acapella` 二进制早于这条命令 | `brew upgrade acapella`，或换用最新构建 |
+| `GET /download/…` 回 404 | 中转区文件只留 6 小时，`downloadId` 过期 | 重新 `track audio export` 拿新 id |
+| `BAD_REQUEST: would cover Xs but the project is Ys` | 加了 `--fit reject`，素材长度与工程差超 0.25 s | 去掉 `--fit reject`（会补静音），或先把素材裁/补到整曲长 |
+| `PRECONDITION_FAILED: has not been replaced by the agent` | 想 `restore` 但当前文件本来就是原分离文件 | 没什么可撤的；先 `replace` 再谈 `restore` |
+| `PRECONDITION_FAILED: the original … is gone` | 原分离文件被删/工程被重新分离过 | 重新分离，或直接用 `replace` 放回你要的音频 |
+
+容差内的长度差**不会**报错，但会有 `warning: … ends at X s — Y s of the project tail will be silence`。
+这不是噪音：不处理的话导出末尾就是一截静音。
 
 ## App 端异常（`INTERNAL`）
 
@@ -105,5 +121,6 @@ acapella state | jq .revision        # 拿新 revision 重新决定，再重发
 
 - 要删除工程 / 删除有录音的轨。
 - 要覆盖已录的 take。
+- 要 `track audio replace` 某条轨的音频：分轨还能 `restore`，**take 换掉就回不去**。
 - `doctor` 四项里有红的，且用户在场。
 - 同一个命令连续两次失败且 `hint` 没变。
