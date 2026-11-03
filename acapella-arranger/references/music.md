@@ -4,9 +4,7 @@
 
 ## 1. 声部表（器乐 / 混合织体起点）
 
-> 这张表是给**非人声音色**（`synth.bass` / `synth.sine` / `synth.electricPiano` 这类）用的，
-> 所以音域写得宽。编**人声**阿卡贝拉别用这里的数字 —— 人声四声部的音域是生理限制
-> （Bass E2–E4 / Tenor C3–A4 / Alto F3–F5 / Soprano C4–C6），见 `references/voices.md`。
+> 这张表适用于 MIDI 乐器编配，音域范围按乐器覆盖能力给出。当前不支持人声阿卡贝拉编配。
 
 | 角色 | 音域 | 声像 | 音量 | 节奏 | 说明 |
 | --- | --- | --- | --- | --- | --- |
@@ -92,7 +90,7 @@ N = 无和弦（该段留白）
 | 建工程（BPM/拍号/长度/调性）、加轨、改名、移动、删除 | `fx preset apply`（无此命令；效果器只能靠音量/声像近似） |
 | 写 / 改 / 查 / 分析音符 | `midi import` / `midi export`（无此命令） |
 | 音量、声像、静音、独奏、折叠 | `chords get/set`（无此命令；和弦信息只在 App 内看） |
-| 从人声生成真声合唱 / MIDI 合唱（`harmony` `choir`） | `key analyze`（无此命令；用 `key get` 读，`key set` 写） |
+| 人声合唱生成 | 当前暂不支持 |
 | 渲染 MIDI 轨成音频 | 空工程 `beat set` / `beat analyze`（BPM 建时定死） |
 | 走带、AB 循环、分段列表 | 网格 MV 视频（`export --video` 有，网格版不在本版本） |
 | 节拍查询 / 分析（导入工程）、重拍 | — |

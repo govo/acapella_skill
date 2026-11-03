@@ -1,8 +1,8 @@
 # `acapella` CLI — 命令全表
 
-由 `acapella docs` 从 CLI 自己的命令表生成（v0.5.2，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
+由 `acapella docs` 从 CLI 自己的命令表生成（v0.6.0，协议 1）。**不要手改**：改 CLI 的命令注册表，再跑 `scripts/gen-commands.sh`。
 
-共 76 条命令。
+共 71 条命令。
 
 ## 会话
 
@@ -61,7 +61,6 @@
 | `track mix <track> [--volume -3dB] [--pan L20] [--mute on] [--solo on]` | 调一条轨的音量 / 声像 / 静音 / 独奏 |
 | `track fold <track> [on\|off]` | 折叠 / 展开轨道（只影响显示） |
 | `track render <track>` | 把 MIDI 轨渲染成音频（写完音符统一渲染一次） |
-| `track instrument <track> <instrument> [--voice male]` | 换 MIDI 轨的音色（免费档：非人声全放开 + 人声只能用「啊」） |
 
 **`track get`**
 > 读的是播放引擎真正调度的那个文件。分轨给源文件；MIDI / 合唱 / take 给整曲对齐的
@@ -79,14 +78,6 @@
 **`track mix`**
 > 音量写 0.7 或 -3dB 都行；声像写 L30 / R15 / -0.3 / 0。
 > 注意 solo 会让其他轨在导出里变静音 —— 返回值里会带 warning。
-
-**`track instrument`**
-> 写完整 id（`synth.piano`）、去掉 `synth.` 的简写（`piano` / `choir.ooh`），
-> 或元音短名（`ah` / `ooh` / `oh` / `mm` / `aya` / `ee` / `oohoh` / `hey`）。
-> 元音短名默认女声，`--voice male` 换男声。清单见 `acapella instrument list`。
-> 会**重渲染这条轨**（换音色就是换声音），音符不动。
-> 免费档只允许：任意非人声音色 + 人声的「啊」。选别的元音会收到 `LIMIT_REACHED`
-> （`feature: vocal_vowel_pro`）。已经存着 Pro 元音的轨道不会被这条命令改回「啊」。
 
 ## 音频
 
@@ -158,23 +149,6 @@
 > 纯拍数写 beat:2 或 2beats，秒写 0.5。
 > pitch 接受 C4 / F#3 / 60，velocity 接受 0.8 或 102。
 > 批量写完只渲染一次，不要逐条渲染。
-
-## 音色
-
-| 命令 | 作用 |
-| --- | --- |
-| `instrument list` | 音色清单：id / 名称 / 是不是人声 / 当前档位能不能选 |
-
-**`instrument list`**
-> 23 个音色分两类：
-> - **非人声**（方波 / 正弦 / 三角 / 锯齿 / 钢琴 / 电钢 / 贝斯）：免费全放开；
-> - **人声元音**（啊 / 呜 / 噢 / 嗯 / 啊呀 / 咦 / 哦呜 / 嘿，男女各一份）：共 16 个，
->   免费档只能用**啊**（`synth.choirAh` / `synth.choirAhMale`）。
-> 返回里 `freeTier` 是"免费档能不能选"，`selectable` 是"你当前这个档位能不能选"。
-> 两者都为 false 时别硬写：换成非人声音色，或 `--instrument ah`。
-> `keepExistingVowel: true` 说的是另一件事：轨道上**已经存着**的 Pro 元音
-> （付费期选的 / 别人分享的工程）**不会被回退**，照旧出声、照旧能写音符。
-> 不要为了"合规"把它改回「啊」—— 那是把用户的编曲改坏。
 
 ## 歌词
 
@@ -282,31 +256,11 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `harmony options` | 真声合唱的全部类型（取值 / 名称 / 声部数） |
-| `harmony create --source <track> --type thirdAbove [--level 0.6]` | 从某条轨生成真声合唱（等同右键 Vocal Harmony） |
 | `choir options` | MIDI 合唱的全部声部串（bass.quarter / arpeggio.below.eighth …） |
 | `choir create --source <track> --part bass.quarter` | 生成 MIDI 合唱轨（等同右键 MIDI Choir） |
-| `choir voices` | 多人阿卡贝拉的四声部音域表与编曲约束（只读，不生成） |
-
-**`harmony options`**
-> 先查再建：类型既可用名字（thirdAbove）也可用数字（2），重名与大小写都不敏感。
-
-**`harmony create`**
-> 多声部类型会落成多条轨（如 vocalStack4 → 4 条）。命令会等到队列跑空才返回，
-> 返回值里的 created[] 就是本次新建的轨（含 hasAudio / noteCount）。
 
 **`choir create`**
 > 声部串必须来自 `choir options`（与菜单项一一对应）；同样会等到渲染完成。
-
-**`choir voices`**
-> 这条不给工程加任何东西，只回答"怎么写一首无伴奏合唱"：
-> SATB 四个声部的可写音域 / 舒适区 / 角色，以及声部间距、平行五八度、
-> 力度配比这些约束。
-> 什么时候用它：用户要的是「阿卡贝拉合唱团 / 无伴奏合唱 / 多人合唱」，
-> 即**你自己按声部写 MIDI**、一人一轨。不是 `harmony create`
-> （那是渲染真声音频，你一个音符都不用写），也不是 `choir create`
-> （那是按和弦铺一条模板图案，只有一条线）。
-> 落地是 `track add --kind midi` × N + 每个声部一次 `notes replace`。
 
 ## 导出
 
@@ -447,23 +401,17 @@ acapella track audio restore vocals                         # 反悔了，回原
 分轨的原文件不会被覆盖，所以 `restore` 只是把记录指回去。
 录音 take 换掉就是换掉了（与界面重录同一语义），没有 restore。
 
-## 写一首多人阿卡贝拉（是编曲，不是生成）
+## 写多条 MIDI 声部（编曲）
 
 ```
-acapella choir voices                               # 音域表 + 约束（只读，不动工程）
-acapella track add --kind midi --name Bass          # 一人一轨：四声部 = 四次
+acapella track add --kind midi --name Bass          # 一条声部一轨
 acapella notes replace midi:… --notes @bass.json    # 每个声部写一次，自动重渲染该轨
 acapella qc notes && acapella qc mix                # 音域 / 平衡
 ```
 
-`harmony create` 和 `choir create` 都是**生成**：前者把主唱音频移调渲染成真声，
-后者按和弦铺一条模板线 —— 两条路都不需要你写一个音符。
-用户说「阿卡贝拉合唱团 / 无伴奏合唱 / 每人一个声部」时要的正好相反：
-四条 MIDI 轨、一名歌手一条，音符由你按声部写出来。
-
-`choir voices` 给 SATB 的可写音域（Bass E2–E4 / Tenor C3–A4 / Alto F3–F5 / Soprano C4–C6）、
-舒适区、相邻声部最大间距，以及平行五八度与力度分层的约束。
-连着 `choir create` 发四次不会变成四声部：它每次只按和弦算一条线、不读别的声部。
+`choir create` 是按和弦**生成**一条模板线（声部串来自 `choir options`），不需要你写音符；
+要自己写声部就加 MIDI 轨再 `notes replace`，两条路可以混用。
+当前不提供人声音色与真声合唱命令。
 
 ## 输出与退出码
 

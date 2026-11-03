@@ -198,8 +198,7 @@ scripts/demo_twinkle.py --style folk --bpm 126 # 民谣 126 BPM，去掉和声
 
 ### 编曲轨也能导出（2026-10-22 起）
 
-导出源有四类：**伴奏分轨（stem）/ 编曲 MIDI 轨（midi）/ 真声合唱（harmony）/
-跟唱 take**。纯编曲工程（空工程 + 几条 MIDI 轨）现在可以正常出混音，但**必须先
+导出源包括伴奏分轨（stem）、编曲 MIDI 轨（midi）与录音 take。纯编曲工程（空工程 + 几条 MIDI 轨）现在可以正常出混音，但**必须先
 `track render`** —— 导出读的是渲染出来的整曲对齐 WAV，没渲染过的轨不会出现在
 导出源里（因此也不会在面板上给你一条点了必然报错的项）。
 
@@ -250,89 +249,20 @@ acapella track audio restore drums
   前 9 秒会变成静音。
 - **`--fit reject` 会拒长度不符的**：容差 0.25 s（解码取整），但落在容差内的缺口会在
   `warnings` 里说"末尾 X 秒是静音"—— 不要忽略。
-- **派生轨不跟随**：换掉 `drums` 后 `Drums Other`（残差轨）与由它派生的真声合唱仍是旧渲染。
+- **派生轨不跟随**：换掉 `drums` 后 `Drums Other`（残差轨）仍是旧渲染。
   要一致就重新生成。
 - **两类轨语义不同**：分轨 stem 换文件、可 `restore`；录音 take 换掉 = 覆盖（同 App 里重录），
-  **没有 restore**；真声合唱轨不能换（`UNSUPPORTED`），去换源轨再 `harmony create`；
+  **没有 restore**；
   纯 MIDI 轨也不能换（没有音频文件），走 `notes replace` + `track render`。
 - **换完必须重跑 `qc mix`**：新素材常常更响，`peakGuardCeiling = 0.89`（约 −1 dBFS），
   `peakDbfs` 超过 −0.3 就要 `track mix --volume` 压回来。
 
 ---
 
-## 配方 9：写一首四人阿卡贝拉（SATB，一人一轨，音符自己写）
+## 配方 9：MIDI 和弦编配
 
-适用：用户要「阿卡贝拉合唱团」「无伴奏合唱」「四个人四个声部」。**不是**「给主唱加和声」。
-
-```bash
-# 0 读表：音域 / 舒适区 / 声部角色 / 全部约束（只读，不动工程）
-acapella choir voices | jq '.voices[] | {voice, range, comfort, role}'
-acapella instrument list | jq '{pro, freeVowels, lockedVowels}'     # 0.5 看档位
-
-# 1 建工程与四条人声轨（一人一轨，别合并）
-acapella project create "A Cappella" --bpm 96 --beats-per-bar 4 --bars 32 --key C
-acapella track add --kind midi --name Bass
-acapella track add --kind midi --name Tenor
-acapella track add --kind midi --name Alto
-acapella track add --kind midi --name Soprano
-
-# 1.5 先设音色（新建轨默认是方波，不设就是电子乐队；详情见 references/voices.md）
-acapella track instrument <Bass>    ah --voice male
-acapella track instrument <Tenor>   ah --voice male
-acapella track instrument <Alto>    ah --voice female
-acapella track instrument <Soprano> ah --voice female
-
-# 2 每个声部写一份 notes JSON，再一次写入（每写一条会自动重渲染该轨）
-acapella notes replace <Bass>    --notes @bass.json
-acapella notes replace <Tenor>   --notes @tenor.json
-acapella notes replace <Alto>    --notes @alto.json
-acapella notes replace <Soprano> --notes @soprano.json
-
-# 3 校验
-acapella qc notes        # 音域越界 / 重叠
-acapella qc mix          # 平衡 / 削波
-```
-
-`notes` 的最小形状（`duration` 用 `beat:N` 最不容易错，`N` 是拍数）：
-
-```json
-// bass.json —— C–Am–F–G，每小节一个全音符
-[
-  {"start": "1:1", "duration": "beat:4", "pitch": "C3", "velocity": 0.82},
-  {"start": "2:1", "duration": "beat:4", "pitch": "A2", "velocity": 0.80},
-  {"start": "3:1", "duration": "beat:4", "pitch": "F2", "velocity": 0.80},
-  {"start": "4:1", "duration": "beat:4", "pitch": "G2", "velocity": 0.82}
-]
-```
-
-```json
-// soprano.json —— 同一进行下的高声部（三音 / 五音，避免与内声部撞）
-[
-  {"start": "1:1", "duration": "beat:4", "pitch": "E4", "velocity": 0.85},
-  {"start": "2:1", "duration": "beat:4", "pitch": "C5", "velocity": 0.85},
-  {"start": "3:1", "duration": "beat:4", "pitch": "A4", "velocity": 0.85},
-  {"start": "4:1", "duration": "beat:4", "pitch": "B4", "velocity": 0.85}
-]
-```
-
-**坑**：
-
-- **四条轨 ≠ 四次 `choir create`**。那个命令每次只按和弦算一条线、不读别的声部；
-  四条各自算出来的会撞音、平行五度、间距开洞。手写才叫织体。
-- **不要用 `harmony create` 顶替**。那是把主唱音频移调渲染，产出「同一个人唱的另一个音高」，
-  用户要的四个独立声部根本没出现。
-- **音域是硬约束**（`choir voices` 给 MIDI 号与音名）：Bass E2–E4 / Tenor C3–A4 /
-  Alto F3–F5 / Soprano C4–C6。超了照样出声，但听着不是人。
-- **相邻声部间距 ≤ 八度**（T–B 可到十二度）。无伴奏没有乐器填缝，缝一大就露洞。
-- **避开连续平行五度 / 八度**：裸织体里它们会糊成一条粗线。
-- **力度当配器**：内声部（A/T）0.55–0.7，外声部（S/B）0.75–0.9。四条都 0.8 像管风琴。
-- **写形式，不写循环**：主歌 / 副歌 / 桥段换 voicing。原样复制粘贴正是模板生成干的事。
-- **音色是这版的主角**：不设音色 = 四条方波。四声部默认全唱「啊」（S/A 女声、T/B 男声），
-  换风格就整首换一个元音，别按声部拆；免费档只有「啊」。全表见 `references/voices.md`。
-- **额度**：手写四声部要 4 条 MIDI 轨，免费档可能装不下。先看 `caps`，装不下就告诉用户。
-
-
----
+按和弦生成 MIDI 乐器声部时使用 `choir options/create`；也可用 `notes replace` 手写 MIDI 乐器音符。
+当前不支持人声音色、真声合唱或人声阿卡贝拉编曲。
 
 ## 配方 10：给工程配一份能跟唱的歌词
 
