@@ -113,7 +113,7 @@ def to_seconds(beat, bpm):
 
 
 def pan_text(value):
-    """声像用 CLI 自己的记法（L18 / R22 / 0），不要喂 "+0.00" 这种带正号的数字。"""
+    """声像用服务端接受的记法（L18 / R22 / 0），不要喂 "+0.00" 这种带正号的数字。"""
     if abs(value) < 0.01:
         return "0"
     return "%s%.0f" % ("L" if value < 0 else "R", abs(value) * 100)

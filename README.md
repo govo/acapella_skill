@@ -114,7 +114,11 @@ scripts/check-tools.sh --table  # 打出最新工具表，人工贴回文档
 
 ## 版本
 
-`metadata.version` 跟 skill 内容走，不跟 App 版本走。当前 **1.1.0**。
+`metadata.version` 跟 skill 内容走，不跟 App 版本走。当前 **1.1.1**。
 
+- 1.1.1 — 清掉 `music.md` 与两处脚本注释里残留的 CLI 写法（`qc notes` → `qc.notes`、
+  `beat set` → `beat.set`、`--volume -2dB` → `track.mix {volume: "-2dB"}` 等）；
+  修正 `export --video` 这个**并不存在**的工具（实际只有 `export.mix` / `export.tracks`）；
+  `troubleshooting.md` 的换端口说明补上可靠做法（直接跑包内二进制，`open --args` 不可靠）
 - 1.1.0 — 新增 `references/opening.md`：用户不知道怎么开口时的开场三问、默认值与话术对照
 - 1.0.0 — 从 CLI 切到本机 MCP（65 个工具）；`gen-commands.sh` → `check-tools.sh`

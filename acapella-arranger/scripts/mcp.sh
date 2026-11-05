@@ -75,7 +75,7 @@ BASE="$(discover_base)" || die "no Acapella MCP server on 127.0.0.1:47610–4762
   → open Acapella, then Settings › AI Control, and turn the switch on."
 
 # token 由 App 生成、由人复制。这里读的是**用户自己的副本**，不碰 App 容器：
-# 容器路径随沙盒形态变化，翻它是错的（也是过去 CLI 反复踩的坑）。
+# 容器路径随沙盒形态变化，翻它是错的（也是过去反复踩的坑）。
 TOKEN="${ACAPELLA_MCP_TOKEN:-${ACAPELLA_AGENT_TOKEN:-}}"
 if [ -z "$TOKEN" ] && [ -f "$HOME/.config/acapella/token" ]; then
   TOKEN="$(tr -d ' \t\r\n' < "$HOME/.config/acapella/token")"

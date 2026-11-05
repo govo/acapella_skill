@@ -23,8 +23,10 @@ scripts/mcp.sh health
 > 「连不上」有两种，处置完全不同，别混：
 > **拒绝连接** = App 没开 / 端口不对；**连上但不回** = 端口上有个僵死进程
 > （TCP 握得上、HTTP 不回，`kill -9` 也未必清得掉）。
-> 后者换端口只在**新起一个实例**时有用；`open -a Acapella --args --agent-port 47612`
-> 在部分 macOS 版本上根本不会把参数传进 App，别指望它。
+> 后者换端口只在**新起一个实例**时有用。别用 `open -a Acapella --args --agent-port 47612`
+> —— 部分 macOS 版本不会把参数传进 App。可靠的做法是直接跑包里的二进制：
+> `/Applications/Acapella.app/Contents/MacOS/Acapella --agent-port 47612`
+> （也可以 `ACAPELLA_AGENT_PORT=47612`，但要配 `launchctl setenv`，需要管理员权限）。
 >
 > 端口发现：App 默认绑 47610，被占时自动顺延 47611–47620；
 > `scripts/mcp.sh` 每次都扫这一段找 `/health`。设置页显示的才是真值。

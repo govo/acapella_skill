@@ -2,7 +2,7 @@
 name: acapella-arranger
 description: 通过本机 MCP 服务驱动 macOS 上的 Acapella App——建工程（定 BPM / 拍号 / 调性）、加 MIDI 轨、写音符、按和弦编配 MIDI 声部、生成 MIDI 合唱、给工程写入 / 替换 / 对齐歌词（LRC、逐词、纯文本）、调混音与效果、设 AB 循环练习、按小节定位、导出成片并做客观质检。当用户说"建个工程""把这几个声部做出来""按和弦编配""来个 MIDI 合唱/低音线/琶音""定个调""设一个副歌循环""导出一版混音""帮我加歌词/把这首词填进去""歌词对不上/早了慢了""换一份歌词"，或直接要求 AI 操作 Acapella 时使用。当前暂不支持人声音色、真声合唱或人声编曲。本 Skill 不用于纯音乐理论问题或无工程上下文的音频后期。
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   requires: Mac 上的 Acapella.app（AI 控制开关已打开）
 compatibility: 需要 macOS + Acapella.app；App 内「设置 → AI 控制」打开开关，并把设置页显示的 token 复制到本机（见「接入」。本 Skill 不依赖任何命令行工具）。
 allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/*) Bash(curl:*) Bash(jq:*)
