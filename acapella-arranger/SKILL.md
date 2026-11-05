@@ -118,7 +118,7 @@ scripts/mcp.sh call state # 2. 把它当唯一事实，不要假设任何状态
 | 节拍 | `beat.get/set/analyze/downbeat` |
 | 交付 | `export.mix/tracks` `qc.mix/notes` |
 
-`tools/list` 就是逃生门：命令表里有什么就能调什么，不存在"客户端还没包"这回事。
+`tools/list` 就是逃生门：工具表里有什么就能调什么，不存在"客户端还没包"这回事。
 
 **三条合法的创作路径，都能被读回来**：
 

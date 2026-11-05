@@ -4,8 +4,7 @@
 Streamable HTTP）驱动 macOS 上的 Acapella.app —— 建工程、写音符、按和弦编配、
 生成 MIDI 合唱、混音、练习循环、换某条轨的音频、导出与质检。
 
-**不需要安装任何命令行工具。** 旧版是通过 `acapella` CLI 驱动的，CLI 已经下线，
-App 自己就是 MCP 服务端，客户端用你已经在用的那个 AI 就行。
+**不需要安装任何额外程序。** App 自己就是 MCP 服务端，客户端用你已经在用的那个 AI 就行。
 
 | skill | 说明 |
 | --- | --- |
@@ -116,9 +115,10 @@ scripts/check-tools.sh --table  # 打出最新工具表，人工贴回文档
 
 `metadata.version` 跟 skill 内容走，不跟 App 版本走。当前 **1.1.1**。
 
-- 1.1.1 — 清掉 `music.md` 与两处脚本注释里残留的 CLI 写法（`qc notes` → `qc.notes`、
+- 1.1.1 — 清掉 `music.md` 与两处脚本注释里残留的旧式命令写法（`qc notes` → `qc.notes`、
   `beat set` → `beat.set`、`--volume -2dB` → `track.mix {volume: "-2dB"}` 等）；
   修正 `export --video` 这个**并不存在**的工具（实际只有 `export.mix` / `export.tracks`）；
-  `troubleshooting.md` 的换端口说明补上可靠做法（直接跑包内二进制，`open --args` 不可靠）
+  `troubleshooting.md` 的换端口说明补上可靠做法（直接跑包内二进制，`open --args` 不可靠）；
+  删掉全文最后几处对已下线工具的引用
 - 1.1.0 — 新增 `references/opening.md`：用户不知道怎么开口时的开场三问、默认值与话术对照
-- 1.0.0 — 从 CLI 切到本机 MCP（65 个工具）；`gen-commands.sh` → `check-tools.sh`
+- 1.0.0 — 切换到本机 MCP（65 个工具）；`gen-commands.sh` → `check-tools.sh`

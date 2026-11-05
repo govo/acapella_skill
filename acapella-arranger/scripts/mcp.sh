@@ -5,7 +5,7 @@
 # 为什么需要它：MCP 客户端（Claude Desktop、Cursor、Codex…）里有原生工具，
 # 直接在对话里调就行；但**脚本里**没有工具调用这回事，只能自己发 JSON-RPC。
 # 本脚本就是那层薄壳：POST /mcp 收发，把 `data` 摊平成 JSON 打到 stdout，
-# 用法跟以前那条命令行几乎一样，只是名字换成了工具名。
+# 参数就是工具名 + 一个 JSON。
 #
 # 用法
 #   ./mcp.sh health                              # 探活：端口、版本、工具数
