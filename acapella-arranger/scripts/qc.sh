@@ -2,7 +2,7 @@
 #
 # qc.sh —— 交付前的客观质检闸门。
 #
-# 为什么要包一层：`acapella qc mix` 返回 JSON，人要在几十行里找"过没过"；
+# 为什么要包一层：`qc.mix` 返回 JSON，人要在几十行里找"过没过"；
 # 脚本把阈值判断做掉，退出码就是结论 —— 0 合格、1 不合格。CI 或 AI 直接看码。
 #
 # 用法
@@ -12,9 +12,11 @@
 #   ./qc.sh --allow-no-lead     # 工程里没有主唱时放行（纯器乐）
 #
 # 退出码
-#   0 通过 · 1 不合格 · 2 返回的 JSON 读不懂 · 3 acapella 调用失败
+#   0 通过 · 1 不合格 · 2 返回的 JSON 读不懂 · 3 调不通 App（没开开关 / token 不对）
 #
 set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
 
 MAX_PEAK="-0.3"
 REQUIRE_LEAD=1
@@ -30,8 +32,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if ! command -v acapella >/dev/null 2>&1; then
-  echo "qc.sh: acapella is not on PATH (brew install govo/tap/acapella)" >&2
+MCP="$HERE/mcp.sh"
+if [ ! -x "$MCP" ]; then
+  echo "qc.sh: mcp.sh not found next to this script" >&2
   exit 3
 fi
 if ! command -v python3 >/dev/null 2>&1; then
@@ -39,10 +42,10 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 3
 fi
 
-OUT="$(acapella qc mix)"
+OUT="$("$MCP" call qc.mix --compact)"
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
-  echo "qc.sh: acapella qc mix failed (exit $STATUS)" >&2
+  echo "qc.sh: qc.mix failed (exit $STATUS)" >&2
   exit 3
 fi
 
@@ -92,7 +95,7 @@ verdict = "PASS" if not failures else "FAIL"
 peak_text = f"{peak}" if peak is not None else "?"
 rms_text = f"{rms}" if rms is not None else "?"
 duration_text = f"{duration}" if duration is not None else "?"
-print(f"qc mix — {verdict}")
+print(f"qc.mix — {verdict}")
 print(f"  peak      {peak_text} dBFS   limit {max_peak}")
 print(f"  rms       {rms_text} dBFS")
 print(f"  clipped   {clips} samples")

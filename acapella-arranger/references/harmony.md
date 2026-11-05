@@ -4,8 +4,8 @@ Acapella 当前暂不支持人声音色或真声合唱。此页仅保留 MIDI �
 
 ## MIDI 合唱模板
 
-`choir options` 列出可用的乐器声部模板，例如低音、琶音与平行长音；`choir create` 根据源轨和所选模板生成 MIDI 乐器轨。
-使用时先查询当前 CLI 能力，以 `acapella caps` 为准。不要把生成的 MIDI 乐器声部描述为人声。
+`choir.options` 列出可用的乐器声部模板，例如低音、琶音与平行长音；`choir.create` 根据源轨和所选模板生成 MIDI 乐器轨。
+使用时先查询当前能力，以 `tools/list` 与 `caps` 为准。不要把生成的 MIDI 乐器声部描述为人声。
 
 ## 和声理论
 

@@ -2,7 +2,7 @@
 #
 # arrange_from_chords.sh —— 给一份和弦进行，产出四条声部的 notes JSON。
 #
-# 这是「配方 2」的第 1 步：把 C Am F G 变成能直接喂给 `acapella notes replace` 的音符表。
+# 这是「配方 2」的第 1 步：把 C Am F G 变成能直接喂给 `notes.replace` 的音符表（JSON 数组）。
 # 乐理规则写在 references/music.md §4；本脚本是它的实现。
 #
 # 用法
@@ -276,10 +276,10 @@ print()
 if print_only:
     print("(--print: nothing was written; drop --print to emit the four JSON files)")
 else:
-    print("next  (把 @track:\"bass\" 换成你工程里真实的轨名；轨名要先 track list 确认唯一):")
+    print("next  (把 @track:\"bass\" 换成你工程里真实的轨名；轨名要先 track.list 确认唯一):")
     for name, (_data, _mix) in parts.items():
-        print(f'  acapella notes replace --track @track:"{name}" --notes {out_dir}/{name}.json')
-    print("  # 四条都写完，再逐条 track render（串行）")
+        print(f'  notes.replace {{"track": "@track:\\"{name}\\"", "notes": <{out_dir}/{name}.json 的内容>}}')
+    print("  # 四条都写完，再逐条 track.render（串行）")
 PY
 
 exit $?

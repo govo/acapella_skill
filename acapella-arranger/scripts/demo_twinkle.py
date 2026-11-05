@@ -2,10 +2,10 @@
 """
 demo_twinkle.py —— 用《小星星》从头建一首有风格的小样（端到端演示）。
 
-它演示的是「AI 通过 CLI 做音乐」的最小完整闭环：
+它演示的是「AI 通过 MCP 做音乐」的最小完整闭环：
     建空工程 → 加 4 条 MIDI 轨 → 写音符 → 调混音 → 渲染 → 导出 → 客观质检
 
-为什么用脚本而不是让 AI 逐条敲命令：编曲最怕"算错一个 beat"。这里所有时间
+为什么用脚本而不是让 AI 逐条调用工具：编曲最怕"算错一个 beat"。这里所有时间
 都由 BPM 推出来（量化到 beat 网格），音符表一次写整轨，AI 只负责决定"和声走几度、
 低音怎么走"，算术交给代码 —— 这正是 SKILL 里"不要让模型做十六分音符算术"的意思。
 
@@ -14,6 +14,9 @@ demo_twinkle.py —— 用《小星星》从头建一首有风格的小样（端
     ./demo_twinkle.py --style ballad --name "小星星·抒情"
     ./demo_twinkle.py --plan                   # 只看编排统计，不连 App
     ./demo_twinkle.py --bpm 112 --keep-json    # 保留生成的音符 JSON
+    ./demo_twinkle.py --url http://127.0.0.1:47612   # 端口顺延过时手动指定
+
+token：ACAPELLA_MCP_TOKEN，或 ~/.config/acapella/token（从 App 设置页复制）。
 
 退出码
     0 成功 · 1 编曲/参数问题 · 3 连不上 App · 4 某一步被服务端拒绝
@@ -23,9 +26,10 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 
 # ---------------------------------------------------------------- 音高工具
 
@@ -186,38 +190,105 @@ def make_part(style, bpm):
     return [t for t in tracks if t[1]]
 
 
-# ---------------------------------------------------------------- CLI 封装
+# ---------------------------------------------------------------- MCP 客户端
 
-class CLIError(Exception):
+TOKEN_FILE = os.path.expanduser("~/.config/acapella/token")
+
+
+class MCPError(Exception):
+    """带退出码的错误：3 = 连不上，4 = 服务端拒绝。"""
+
     def __init__(self, message, code):
         super().__init__(message)
         self.code = code
 
 
-def resolve_binary(explicit):
-    for candidate in (explicit, os.environ.get("ACAPELLA_BIN"), shutil.which("acapella")):
-        if candidate and os.path.exists(candidate) and os.access(candidate, os.X_OK):
-            return candidate
-    here = os.path.dirname(os.path.abspath(__file__))
-    fallback = os.path.normpath(os.path.join(here, "../../../acapella_cli/acapella"))
-    if os.path.exists(fallback):
-        return fallback
-    raise CLIError("acapella CLI not found (brew install govo/tap/acapella, or --binary PATH)", 3)
+def read_token():
+    for key in ("ACAPELLA_MCP_TOKEN", "ACAPELLA_AGENT_TOKEN"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE, encoding="utf-8") as handle:
+            return handle.read().strip()
+    raise MCPError(
+        "缺少 token：从 Acapella › 设置 › AI 控制 复制，然后\n"
+        "  mkdir -p ~/.config/acapella && pbpaste > ~/.config/acapella/token && chmod 600 该文件\n"
+        "（或 export ACAPELLA_MCP_TOKEN=…）", 3)
 
 
-def call(binary, args, note=None):
-    command = [binary] + args
-    proc = subprocess.run(command, capture_output=True, text=True)
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout).strip()
-        raise CLIError("%s\n  $ acapella %s\n  %s" % ("命令失败", " ".join(args), detail), proc.returncode)
-    text = proc.stdout.strip()
-    if not text:
-        return {}
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        raise CLIError("stdout 不是 JSON：%s" % text[:300], 1)
+class MCPClient:
+    """只做三件事：发现端口、发 tools/call、把信封拆成 data。"""
+
+    def __init__(self, base=None, timeout=180):
+        self.token = read_token()
+        self.timeout = timeout
+        self.base = (base or self._discover()).rstrip("/")
+
+    # App 默认 47610，被占时顺延到 47620 —— 扫一段比猜默认值可靠。
+    def _discover(self):
+        for port in range(47610, 47621):
+            url = "http://127.0.0.1:%d" % port
+            try:
+                with urllib.request.urlopen(url + "/health", timeout=1) as response:
+                    if b"listening" in response.read():
+                        return url
+            except (urllib.error.URLError, OSError):
+                continue
+        raise MCPError(
+            "127.0.0.1:47610–47620 上没有 Acapella 的 MCP 服务：\n"
+            "  → 打开 App，设置 › AI 控制，把开关打开", 3)
+
+    def _post(self, payload):
+        request = urllib.request.Request(
+            self.base + "/mcp",
+            data=json.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "Authorization": "Bearer " + self.token,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            body = error.read().decode("utf-8", "replace")
+            if error.code in (401, 403):
+                raise MCPError("token 被拒（HTTP %d）：重新从设置页复制一遍" % error.code, 3)
+            raise MCPError("POST /mcp → HTTP %d: %s" % (error.code, body[:300]), 3)
+        except (urllib.error.URLError, OSError) as error:
+            raise MCPError("连不上 %s：%s" % (self.base, error), 3)
+
+    def health(self):
+        with urllib.request.urlopen(self.base + "/health", timeout=5) as response:
+            return json.loads(response.read())
+
+    def call(self, tool, **arguments):
+        response = self._post({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments},
+        })
+        if "error" in response:
+            error = response["error"]
+            hint = (error.get("data") or {}).get("hint")
+            raise MCPError("%s 失败：%s%s" % (
+                tool, error.get("message"), "\n  hint: " + hint if hint else ""), 4)
+        result = response.get("result") or {}
+        envelope = result.get("structuredContent")
+        if envelope is None:
+            text = (result.get("content") or [{}])[0].get("text") or "{}"
+            envelope = json.loads(text)
+        if not envelope.get("ok", False):
+            error = envelope.get("error") or {}
+            hint = error.get("hint")
+            raise MCPError("%s 被拒绝：%s · %s%s" % (
+                tool, error.get("code"), error.get("message"),
+                "\n  hint: " + hint if hint else ""), 4)
+        for warning in envelope.get("warnings") or []:
+            print("  ! %s: %s" % (tool, warning), file=sys.stderr)
+        return envelope.get("data") or {}
 
 
 # ---------------------------------------------------------------- 主流程
@@ -227,7 +298,7 @@ def main():
     parser.add_argument("--name", default=None, help="工程名（默认按风格生成）")
     parser.add_argument("--style", default="pop", choices=sorted(STYLES), help="风格")
     parser.add_argument("--bpm", type=float, default=None, help="覆盖风格的默认 BPM")
-    parser.add_argument("--binary", default=None, help="acapella 可执行文件路径")
+    parser.add_argument("--url", default=None, help="MCP 端点（默认自动扫 47610–47620）")
     parser.add_argument("--plan", action="store_true", help="只打印编排统计，不发请求")
     parser.add_argument("--keep-json", action="store_true", help="保留音符 JSON")
     parser.add_argument("--no-export", action="store_true", help="不导出、不质检（只建工程）")
@@ -248,18 +319,19 @@ def main():
     if args.plan:
         return 0
 
-    binary = resolve_binary(args.binary)
+    client = MCPClient(args.url)
 
-    # 0. 先确认 App 在监听：连不上时后面每条命令都会以 exit 3 失败，先说清楚。
-    call(binary, ["ping"])
+    # 0. 先确认 App 在监听：连不上时后面每一步都会以 exit 3 失败，先说清楚。
+    client.call("ping")
 
     # 1. 建空工程（会自动打开，返回完整快照）
-    state = call(binary, [
-        "project", "create", name,
-        "--bpm", "%.0f" % bpm,
-        "--beats-per-bar", "4",
-        "--bars", str(BARS + 2),          # 留两小节尾音
-    ])
+    state = client.call(
+        "project.create",
+        name=name,
+        bpm=round(bpm),
+        beatsPerBar=4,
+        bars=BARS + 2,                    # 留两小节尾音
+    )
     project = state.get("project", {})
     print("\n[1/7] 工程已建：%s (%s)" % (project.get("name", name), project.get("id", "?")))
 
@@ -268,7 +340,7 @@ def main():
     try:
         # 2. 加轨（--kind midi：空 MIDI 轨，空工程与导入工程都支持）
         for track_name, _, _, _ in parts:
-            result = call(binary, ["track", "add", track_name, "--kind", "midi"])
+            result = client.call("track.add", name=track_name, kind="midi")
             created.append(result["track"]["token"])
         print("[2/7] 已加 %d 条 MIDI 轨：%s" % (len(created), ", ".join(created)))
 
@@ -277,36 +349,36 @@ def main():
             path = os.path.join(tempdir, token.replace(":", "_") + ".json")
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(notes, handle)
-            result = call(binary, ["notes", "replace", token, "--notes", "@" + path])
+            # 音符作为 JSON 数组直接进 arguments（MCP 没有 @file 这回事）
+            result = client.call("notes.replace", track=token, notes=notes)
             printed = result.get("track", {}).get("noteCount", len(notes))
             print("[3/7] %-12s 写入 %s 个音符" % (track_name, printed))
 
         # 4. 混音（音量/声像；solo 一律不碰 —— 它会让别的轨在导出里静音）
         for (track_name, _, volume, pan), token in zip(parts, created):
-            call(binary, ["track", "mix", token,
-                          "--volume", "%.2f" % volume,
-                          "--pan", pan_text(pan)])
+            client.call("track.mix", track=token,
+                        volume="%.2f" % volume, pan=pan_text(pan))
         print("[4/7] 混音完成")
 
         # 5. 渲染：MIDI 轨要先落成音频才能进导出（导出源读的是渲染 WAV）
         for (track_name, _, _, _), token in zip(parts, created):
-            result = call(binary, ["track", "render", token])
+            result = client.call("track.render", track=token)
             if not result.get("rendered"):
                 print("  ! %s 渲染失败，导出会缺这条轨" % track_name, file=sys.stderr)
             else:
                 print("[5/7] %-12s 已渲染" % track_name)
 
         if args.no_export:
-            print("\n工程已保存。用 `acapella project list` 找到它，或在 App 里打开试听。")
+            print("\n工程已保存。用 `project.list` 找到它，或在 App 里打开试听。")
             return 0
 
         # 6. 导出混音（文件落在 App 容器的 Exports/ 下，返回值带绝对路径）
-        exported = call(binary, ["export", "mix"])
+        exported = client.call("export.mix")
         files = exported.get("files", [])
         print("[6/7] 导出：%s" % (files[0] if files else "(没有文件)"))
 
         # 7. 客观质检 —— AI 不会听，这是唯一能判断"有没有声音/有没有削波"的手段
-        report = call(binary, ["qc", "mix"])
+        report = client.call("qc.mix")
         print("[7/7] 质检：%s" % json.dumps(report, ensure_ascii=False))
     finally:
         if args.keep_json:
@@ -320,7 +392,7 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except CLIError as error:
+    except MCPError as error:
         print("demo_twinkle: %s" % error, file=sys.stderr)
         sys.exit(error.code)
     except KeyboardInterrupt:
